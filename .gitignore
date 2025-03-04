@@ -1,0 +1,55 @@
+# Entorno virtual (venv)
+.venv/
+venv/
+env/
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Archivos de base de datos SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Archivos de configuración local
+*.env
+.env.local
+
+# Archivos generados por editores/IDEs
+.idea/  # IntelliJ IDEA (como usas IdeaProjects)
+*.iml   # IntelliJ IDEA
+.vscode/  # Visual Studio Code
+*.sublime-*  # Sublime Text
+
+# Archivos de logs y temporales
+*.log
+*.log.*
+*.tmp
+temp/
+
+# Archivos de paquetes y builds
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Archivos de pruebas y cobertura
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+pytest_cache/
+
+# Archivos específicos del sistema operativo
+.DS_Store  # macOS
+Thumbs.db  # Windows
+
+# Directorios de dependencias instaladas localmente
+site-packages/
