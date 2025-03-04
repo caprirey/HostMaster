@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -55,6 +55,7 @@ class Room(Base):
     id = Column(Integer, primary_key=True, index=True)
     accommodation_id = Column(Integer, ForeignKey('accommodations.id'))
     type_id = Column(Integer, ForeignKey('room_types.id'))
-    number = Column(String, nullable=False)  # Nueva columna para el número de la habitación
+    number = Column(String, nullable=False)
     accommodation = relationship("Accommodation", back_populates="rooms")
     type = relationship("RoomType", back_populates="rooms")
+    __table_args__ = (UniqueConstraint('accommodation_id', 'number', name='uq_room_accommodation_number'),)
