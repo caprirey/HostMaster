@@ -3,12 +3,13 @@ from sqlalchemy.future import select
 from fastapi import HTTPException, status
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase,
-    City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase
+    City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase,
+    Reservation, ReservationBase
 )
 from app.models.sqlalchemy_models import (
     Accommodation as AccommodationTable, Room as RoomTable,
     City as CityTable, Country as CountryTable, State as StateTable, RoomType as RoomTypeTable,
-    UserTable
+    UserTable, Reservation as ReservationTable
 )
 
 async def create_country(db: AsyncSession, country_data: CountryBase) -> Country:
@@ -60,6 +61,21 @@ async def create_room(db: AsyncSession, room_data: RoomBase) -> Room:
     await db.commit()
     await db.refresh(room)
     return Room.model_validate(room)
+
+
+async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, username: str) -> Reservation:
+    reservation = ReservationTable(
+        user_username=username,
+        room_id=reservation_data.room_id,
+        start_date=reservation_data.start_date,
+        end_date=reservation_data.end_date
+    )
+    db.add(reservation)
+    await db.commit()
+    await db.refresh(reservation)
+    return Reservation.model_validate(reservation)
+
+
 
 async def get_countries(db: AsyncSession) -> list[Country]:
     result = await db.execute(select(CountryTable))
@@ -146,3 +162,22 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int = Non
     result = await db.execute(query)
     rooms = result.scalars().all()
     return [Room.model_validate(room) for room in rooms]
+
+
+async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]:
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if user.role == "admin":
+        result = await db.execute(select(ReservationTable))
+    elif user.role == "user":
+        result = await db.execute(
+            select(ReservationTable).where(ReservationTable.user_username == username)
+        )
+    else:
+        raise HTTPException(status_code=403, detail="Invalid role")
+
+    reservations = result.scalars().all()
+    return [Reservation.model_validate(reservation) for reservation in reservations]

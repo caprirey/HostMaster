@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -12,6 +12,7 @@ class UserTable(Base):
     hashed_password = Column(String, nullable=False)
     disabled = Column(Boolean, default=False)
     role = Column(String, default="user")
+    reservations = relationship("Reservation", back_populates="user")
 
 class Country(Base):
     __tablename__ = 'countries'
@@ -48,7 +49,7 @@ class RoomType(Base):
     __tablename__ = 'room_types'
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    rooms = relationship("Room", back_populates="type")
+    rooms = relationship("Room", back_populates="room_type")  # Cambiado de "type" a "room_type"
 
 class Room(Base):
     __tablename__ = 'rooms'
@@ -57,5 +58,15 @@ class Room(Base):
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
     accommodation = relationship("Accommodation", back_populates="rooms")
-    type = relationship("RoomType", back_populates="rooms")
-    __table_args__ = (UniqueConstraint('accommodation_id', 'number', name='uq_room_accommodation_number'),)
+    room_type = relationship("RoomType", back_populates="rooms")  # Cambiado de "type" a "room_type"
+    reservations = relationship("Reservation", back_populates="room")
+
+class Reservation(Base):
+    __tablename__ = 'reservations'
+    id = Column(Integer, primary_key=True, index=True)
+    user_username = Column(String, ForeignKey('users.username'), nullable=False)
+    room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
+    start_date = Column(Date, nullable=False)
+    end_date = Column(Date, nullable=False)
+    user = relationship("UserTable", back_populates="reservations")
+    room = relationship("Room", back_populates="reservations")

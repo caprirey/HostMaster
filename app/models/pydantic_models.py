@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
+from datetime import date
 
 # Auth Models
 class Token(BaseModel):
@@ -81,4 +82,14 @@ class RoomBase(BaseModel):
 
 class Room(RoomBase):
     id: int
+    model_config = {"from_attributes": True}
+
+class ReservationBase(BaseModel):
+    room_id: int
+    start_date: date
+    end_date: date
+
+class Reservation(ReservationBase):
+    id: int
+    user_username: str
     model_config = {"from_attributes": True}

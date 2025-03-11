@@ -4,14 +4,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase,
-    City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User
+    City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
+    Reservation, ReservationBase
 )
 from app.services.hotel import (
     create_accommodation, create_room, get_accommodations, get_rooms,
     create_country, create_state, create_city, create_room_type,
-    get_countries, get_country, get_states, get_state, get_cities, get_city
+    get_countries, get_country, get_states, get_state, get_cities, get_city,
+    create_reservation, get_reservations
 )
-
 router = APIRouter()
 
 @router.post("/countries/", response_model=Country)
@@ -121,3 +122,20 @@ async def get_rooms_route(
         accommodation_id: Optional[int] = Query(None),  # Corregido: valor predeterminado con =
 ):
     return await get_rooms(db, current_user.username, accommodation_id)
+
+
+@router.post("/reservations/", response_model=Reservation)
+async def create_reservation_route(
+        reservation_data: ReservationBase,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    return await create_reservation(db, reservation_data, current_user.username)
+
+@router.get("/reservations/", response_model=List[Reservation])
+async def get_reservations_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    return await get_reservations(db, current_user.username)
+

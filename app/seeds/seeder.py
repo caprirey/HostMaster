@@ -1,9 +1,10 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.sqlalchemy_models import (
-    Country, State, City, Accommodation, RoomType, Room, UserTable
+    Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation
 )
 from app.utils.auth import get_password_hash
+from datetime import date
 
 async def seed_database(db: AsyncSession):
     result = await db.execute(select(UserTable))
@@ -58,10 +59,26 @@ async def seed_database(db: AsyncSession):
     db.add_all([single_room_type, double_room_type])
     await db.flush()
 
-    # Habitaciones con número
+    # Habitaciones
     room_101 = Room(accommodation_id=hotel_sol.id, type_id=single_room_type.id, number="101")
     room_201 = Room(accommodation_id=hotel_luna.id, type_id=double_room_type.id, number="201")
     db.add_all([room_101, room_201])
+    await db.flush()
+
+    # Reservas
+    reservation_1 = Reservation(
+        user_username="admin",
+        room_id=room_101.id,
+        start_date=date(2025, 3, 15),
+        end_date=date(2025, 3, 20)
+    )
+    reservation_2 = Reservation(
+        user_username="user1",
+        room_id=room_201.id,
+        start_date=date(2025, 3, 16),
+        end_date=date(2025, 3, 18)
+    )
+    db.add_all([reservation_1, reservation_2])
     await db.flush()
 
     await db.commit()
