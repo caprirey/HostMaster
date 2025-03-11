@@ -1,18 +1,19 @@
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
-    Reservation, ReservationBase
+    Reservation, ReservationBase, Image, ImageBase
 )
 from app.services.hotel import (
     create_accommodation, create_room, get_accommodations, get_rooms,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
-    create_reservation, get_reservations
+    create_reservation, get_reservations, create_image, get_images
 )
+
 router = APIRouter()
 
 @router.post("/countries/", response_model=Country)
@@ -119,10 +120,9 @@ async def create_room_route(
 async def get_rooms_route(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[User, Depends(get_current_active_user)],
-        accommodation_id: Optional[int] = Query(None),  # Corregido: valor predeterminado con =
+        accommodation_id: Optional[int] = Query(None),
 ):
     return await get_rooms(db, current_user.username, accommodation_id)
-
 
 @router.post("/reservations/", response_model=Reservation)
 async def create_reservation_route(
@@ -139,3 +139,20 @@ async def get_reservations_route(
 ):
     return await get_reservations(db, current_user.username)
 
+@router.post("/images/", response_model=Image)
+async def create_image_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+        image_data: ImageBase = Depends(),
+        image: UploadFile = File(...),
+):
+    return await create_image(db, image, image_data, current_user.username)
+
+@router.get("/images/", response_model=List[Image])
+async def get_images_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+        accommodation_id: Optional[int] = Query(None),
+        room_id: Optional[int] = Query(None),
+):
+    return await get_images(db, current_user.username, accommodation_id, room_id)

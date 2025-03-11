@@ -44,12 +44,13 @@ class Accommodation(Base):
     created_by = Column(String, ForeignKey('users.username'), nullable=False)
     rooms = relationship("Room", back_populates="accommodation")
     city = relationship("City", back_populates="accommodations")
+    images = relationship("Image", back_populates="accommodation")  # Relación con imágenes
 
 class RoomType(Base):
     __tablename__ = 'room_types'
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    rooms = relationship("Room", back_populates="room_type")  # Cambiado de "type" a "room_type"
+    rooms = relationship("Room", back_populates="room_type")
 
 class Room(Base):
     __tablename__ = 'rooms'
@@ -58,8 +59,9 @@ class Room(Base):
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
     accommodation = relationship("Accommodation", back_populates="rooms")
-    room_type = relationship("RoomType", back_populates="rooms")  # Cambiado de "type" a "room_type"
+    room_type = relationship("RoomType", back_populates="rooms")
     reservations = relationship("Reservation", back_populates="room")
+    images = relationship("Image", back_populates="room")  # Relación con imágenes
 
 class Reservation(Base):
     __tablename__ = 'reservations'
@@ -70,3 +72,12 @@ class Reservation(Base):
     end_date = Column(Date, nullable=False)
     user = relationship("UserTable", back_populates="reservations")
     room = relationship("Room", back_populates="reservations")
+
+class Image(Base):
+    __tablename__ = 'images'
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False)  # URL o ruta de la imagen
+    accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=True)
+    room_id = Column(Integer, ForeignKey('rooms.id'), nullable=True)
+    accommodation = relationship("Accommodation", back_populates="images")
+    room = relationship("Room", back_populates="images")

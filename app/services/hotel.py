@@ -1,16 +1,21 @@
+import os
+import uuid
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException, status
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase,
-    Reservation, ReservationBase
+    Reservation, ReservationBase, Image, ImageBase
 )
 from app.models.sqlalchemy_models import (
     Accommodation as AccommodationTable, Room as RoomTable,
     City as CityTable, Country as CountryTable, State as StateTable, RoomType as RoomTypeTable,
-    UserTable, Reservation as ReservationTable
+    UserTable, Reservation as ReservationTable, Image as ImageTable
 )
+from app.config.settings import BASE_URL, STATIC_DIR, IMAGES_DIR
+
+STATIC_PATH = os.path.join(STATIC_DIR, IMAGES_DIR)
 
 async def create_country(db: AsyncSession, country_data: CountryBase) -> Country:
     country = CountryTable(name=country_data.name)
@@ -55,13 +60,12 @@ async def create_room(db: AsyncSession, room_data: RoomBase) -> Room:
     room = RoomTable(
         accommodation_id=room_data.accommodation_id,
         type_id=room_data.type_id,
-        number=room_data.number  # Añadido
+        number=room_data.number
     )
     db.add(room)
     await db.commit()
     await db.refresh(room)
     return Room.model_validate(room)
-
 
 async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, username: str) -> Reservation:
     reservation = ReservationTable(
@@ -75,7 +79,54 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     await db.refresh(reservation)
     return Reservation.model_validate(reservation)
 
+async def create_image(db: AsyncSession, image_file: UploadFile, image_data: ImageBase, username: str) -> Image:
+    # Validar que exactamente uno de accommodation_id o room_id esté presente
+    if (image_data.accommodation_id is not None and image_data.room_id is not None) or \
+            (image_data.accommodation_id is None and image_data.room_id is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of accommodation_id or room_id must be provided, but not both or neither."
+        )
 
+    # Verificar permisos
+    if image_data.accommodation_id:
+        result = await db.execute(
+            select(AccommodationTable).where(AccommodationTable.id == image_data.accommodation_id)
+        )
+        accommodation = result.scalar_one_or_none()
+        if not accommodation or (accommodation.created_by != username and username != "admin"):
+            raise HTTPException(status_code=403, detail="No permission to add image to this accommodation")
+
+    if image_data.room_id:
+        result = await db.execute(
+            select(RoomTable).join(AccommodationTable).where(RoomTable.id == image_data.room_id)
+        )
+        room = result.scalar_one_or_none()
+        if not room or (room.accommodation.created_by != username and username != "admin"):
+            raise HTTPException(status_code=403, detail="No permission to add image to this room")
+
+    # Generar un nombre único para el archivo
+    file_extension = image_file.filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{file_extension}"
+    file_path = os.path.join(STATIC_PATH, filename)
+
+    # Guardar la imagen
+    with open(file_path, "wb") as f:
+        f.write(await image_file.read())
+
+    # Generar la URL
+    url = f"{BASE_URL}/static/{IMAGES_DIR}/{filename}"
+
+    # Guardar en la base de datos
+    image = ImageTable(
+        url=url,
+        accommodation_id=image_data.accommodation_id,
+        room_id=image_data.room_id
+    )
+    db.add(image)
+    await db.commit()
+    await db.refresh(image)
+    return Image.model_validate(image)
 
 async def get_countries(db: AsyncSession) -> list[Country]:
     result = await db.execute(select(CountryTable))
@@ -163,7 +214,6 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int = Non
     rooms = result.scalars().all()
     return [Room.model_validate(room) for room in rooms]
 
-
 async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]:
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
@@ -181,3 +231,49 @@ async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]
 
     reservations = result.scalars().all()
     return [Reservation.model_validate(reservation) for reservation in reservations]
+
+async def get_images(db: AsyncSession, username: str, accommodation_id: int = None, room_id: int = None) -> list[Image]:
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    query = select(ImageTable)
+    if accommodation_id:
+        query = query.where(ImageTable.accommodation_id == accommodation_id)
+        if user.role == "user":
+            result = await db.execute(
+                select(AccommodationTable).where(
+                    AccommodationTable.id == accommodation_id,
+                    AccommodationTable.created_by == username
+                )
+            )
+            if not result.scalar_one_or_none():
+                return []
+    if room_id:
+        query = query.where(ImageTable.room_id == room_id)
+        if user.role == "user":
+            result = await db.execute(
+                select(RoomTable).join(AccommodationTable).where(
+                    RoomTable.id == room_id,
+                    AccommodationTable.created_by == username
+                )
+            )
+            if not result.scalar_one_or_none():
+                return []
+
+    if not accommodation_id and not room_id and user.role == "user":
+        result = await db.execute(
+            select(AccommodationTable).where(AccommodationTable.created_by == username)
+        )
+        user_accommodations = result.scalars().all()
+        if not user_accommodations:
+            return []
+        query = query.where(
+            ImageTable.accommodation_id.in_([a.id for a in user_accommodations]) |
+            ImageTable.room_id.in_([r.id for a in user_accommodations for r in a.rooms])
+        )
+
+    result = await db.execute(query)
+    images = result.scalars().all()
+    return [Image.model_validate(image) for image in images]

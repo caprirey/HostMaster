@@ -1,9 +1,21 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import os
 from app.database.db import engine, init_db, get_db
 from app.routes.auth import router as auth_router
 from app.routes.hotel import router as hotel_router
 from app.seeds.seeder import seed_database
+from app.config.settings import STATIC_DIR, IMAGES_DIR  # Importamos las configuraciones
+
+# Crear directorios estáticos si no existen
+STATIC_PATH = STATIC_DIR
+IMAGES_PATH = os.path.join(STATIC_DIR, IMAGES_DIR)
+
+if not os.path.exists(STATIC_PATH):
+    os.makedirs(STATIC_PATH)
+if not os.path.exists(IMAGES_PATH):
+    os.makedirs(IMAGES_PATH)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -19,6 +31,9 @@ async def lifespan(_: FastAPI):
     await engine.dispose()
 
 app = FastAPI(lifespan=lifespan, title="Hotel Management API")
+
+# Montar el directorio estático
+app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(hotel_router, prefix="/hotel", tags=["hotel"])

@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.sqlalchemy_models import (
-    Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation
+    Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation, Image
 )
 from app.utils.auth import get_password_hash
 from datetime import date
@@ -79,6 +79,13 @@ async def seed_database(db: AsyncSession):
         end_date=date(2025, 3, 18)
     )
     db.add_all([reservation_1, reservation_2])
+    await db.flush()
+
+    # Imágenes
+    image_1 = Image(url="http://example.com/images/hotel_sol.jpg", accommodation_id=hotel_sol.id)
+    image_2 = Image(url="http://example.com/images/room_101.jpg", room_id=room_101.id)
+    image_3 = Image(url="http://example.com/images/room_201.jpg", room_id=room_201.id)
+    db.add_all([image_1, image_2, image_3])
     await db.flush()
 
     await db.commit()

@@ -8,3 +8,8 @@ ACCESS_TOKEN_EXPIRE_DELTA = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
 # Configuración de la base de datos
 DATABASE_URL = "sqlite+aiosqlite:///HostMasterV1.db"
+
+# Configuración de archivos estáticos
+STATIC_DIR = "static"
+IMAGES_DIR = "images"  # Subdirectorio dentro de STATIC_DIR
+BASE_URL = "http://0.0.0.0:8000"  # URL base para acceder a los archivos está
