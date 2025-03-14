@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -8,14 +8,21 @@ from app.models.pydantic_models import (
     RoomType,
     RoomTypeBase,
     Room,
-    RoomBase
+    RoomBase,
+    ImageBase,
+    Image
 )
 from app.models.sqlalchemy_models import (
+    Image as ImageTable,
     Accommodation as AccommodationTable,
     RoomType as RoomTypeTable,
     Room as RoomTable,
-    UserTable  # Importamos UserTable directamente, sin alias 'as User'
+    UserTable
 )
+import os
+import uuid
+from typing import List
+from app.config.settings import STATIC_DIR, IMAGES_DIR  # Importamos las rutas desde settings
 
 async def get_accommodations(db: AsyncSession, username: str) -> list[Accommodation]:
     result = await db.execute(select(UserTable).where(UserTable.username == username))
@@ -54,13 +61,11 @@ async def create_accommodation(
     return Accommodation.model_validate(db_accommodation)
 
 async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> list[Room]:
-    # Verificar el rol del usuario
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Verificar la existencia del alojamiento
     result = await db.execute(
         select(AccommodationTable)
         .where(AccommodationTable.id == accommodation_id)
@@ -69,22 +74,18 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> l
     if not accommodation:
         raise HTTPException(status_code=404, detail="Accommodation not found")
 
-    # Validar permisos según el rol
     if user.role == "admin":
-        # Los administradores pueden ver todas las habitaciones
         pass
     elif user.role == "user":
-        # Los usuarios solo pueden ver habitaciones de alojamientos que crearon
         if accommodation.created_by != username:
             raise HTTPException(status_code=403, detail="Not authorized to view rooms")
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
-    # Consultar las habitaciones con imágenes cargadas ansiosamente
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.accommodation_id == accommodation_id)
-        .options(selectinload(RoomTable.images))  # Cargar imágenes ansiosamente
+        .options(selectinload(RoomTable.images))
     )
     rooms = result.scalars().all()
     return [Room.model_validate(room) for room in rooms]
@@ -147,3 +148,67 @@ async def create_room(
     await db.commit()
     await db.refresh(db_room)
     return Room.model_validate(db_room)
+
+async def upload_images(
+        db: AsyncSession,
+        request: ImageBase,
+        files: List[UploadFile],
+        username: str
+) -> List[Image]:
+    if (request.accommodation_id is None and request.room_id is None) or \
+            (request.accommodation_id is not None and request.room_id is not None):
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of accommodation_id or room_id must be provided"
+        )
+
+    entity = None
+    room = None
+
+    if request.accommodation_id:
+        result = await db.execute(
+            select(AccommodationTable).where(AccommodationTable.id == request.accommodation_id)
+        )
+        entity = result.scalar_one_or_none()
+        if not entity:
+            raise HTTPException(status_code=404, detail="Accommodation not found")
+        if entity.created_by != username:
+            raise HTTPException(status_code=403, detail="Not authorized to upload images")
+    else:  # request.room_id
+        result = await db.execute(
+            select(RoomTable)
+            .where(RoomTable.id == request.room_id)
+            .options(selectinload(RoomTable.accommodation))
+        )
+        room = result.scalar_one_or_none()
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+        if room.accommodation.created_by != username:
+            raise HTTPException(status_code=403, detail="Not authorized to upload images")
+
+    # Usamos STATIC_DIR e IMAGES_DIR desde settings.py
+    upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    uploaded_images = []
+    for file in files:
+        file_extension = file.filename.split(".")[-1]
+        file_name = f"{uuid.uuid4()}.{file_extension}"
+        file_path = os.path.join(upload_dir, file_name)
+
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+        db_image = ImageTable(
+            url=file_path,
+            accommodation_id=request.accommodation_id,
+            room_id=request.room_id
+        )
+        db.add(db_image)
+        uploaded_images.append(db_image)
+
+    await db.commit()
+    for image in uploaded_images:
+        await db.refresh(image)
+
+    return [Image.model_validate(image) for image in uploaded_images]

@@ -8,7 +8,7 @@ from app.models.pydantic_models import (
     Reservation, ReservationBase, Image, ImageBase
 )
 from app.services.hotel import (
-    create_accommodation, create_room, get_accommodations, get_rooms,
+    create_accommodation, create_room, get_accommodations, accommodation, get_rooms,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
     create_reservation, get_reservations, create_image, get_images
@@ -156,3 +156,13 @@ async def get_images_route(
         room_id: Optional[int] = Query(None),
 ):
     return await get_images(db, current_user.username, accommodation_id, room_id)
+
+
+@router.post("/upload_multiple_images/", response_model=List[Image])
+async def upload_multiple_images_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+        request: ImageBase = Depends(),
+        files: List[UploadFile] = File(...),
+):
+    return await accommodation.upload_images(db, request, files, current_user.username)

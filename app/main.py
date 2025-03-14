@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware  # Agregamos esta importación
 import os
 from app.database.db import engine, init_db, get_db
 from app.routes.auth import router as auth_router
@@ -31,6 +32,15 @@ async def lifespan(_: FastAPI):
     await engine.dispose()
 
 app = FastAPI(lifespan=lifespan, title="Hotel Management API")
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite todos los orígenes
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],  # Permite todos los encabezados
+)
 
 # Montar el directorio estático
 app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
