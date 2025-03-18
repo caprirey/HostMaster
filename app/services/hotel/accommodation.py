@@ -10,19 +10,27 @@ from app.models.pydantic_models import (
     Room,
     RoomBase,
     ImageBase,
-    Image
+    Image,
+    Reservation  # Añadido para get_available_rooms
 )
 from app.models.sqlalchemy_models import (
     Image as ImageTable,
     Accommodation as AccommodationTable,
     RoomType as RoomTypeTable,
     Room as RoomTable,
-    UserTable
+    UserTable,
+    Reservation as ReservationTable  # Añadido para get_available_rooms
 )
 import os
 import uuid
 from typing import List
+from datetime import date  # Añadido para tipado de fechas
 from app.config.settings import STATIC_DIR, IMAGES_DIR  # Importamos las rutas desde settings
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 async def get_accommodations(db: AsyncSession, username: str) -> list[Accommodation]:
     result = await db.execute(select(UserTable).where(UserTable.username == username))
@@ -212,3 +220,86 @@ async def upload_images(
         await db.refresh(image)
 
     return [Image.model_validate(image) for image in uploaded_images]
+
+async def get_available_rooms(
+        db: AsyncSession,
+        start_date: date,
+        end_date: date,
+        username: str,
+        accommodation_id: int | None = None
+) -> List[Room]:
+    logger.info(f"Checking available rooms for {username} from {start_date} to {end_date}, accommodation_id={accommodation_id}")
+
+    # Validar fechas
+    if start_date >= end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="Start date must be before end date"
+        )
+
+    # Verificar usuario y permisos
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    logger.info(f"User role: {user.role}")
+
+    # Obtener todas las habitaciones según permisos
+    if user.role == "admin":
+        if accommodation_id:
+            result = await db.execute(
+                select(RoomTable)
+                .where(RoomTable.accommodation_id == accommodation_id)
+                .options(selectinload(RoomTable.images))
+            )
+        else:
+            result = await db.execute(
+                select(RoomTable)
+                .options(selectinload(RoomTable.images))
+            )
+    elif user.role == "user":
+        if accommodation_id:
+            result = await db.execute(
+                select(RoomTable)
+                .join(AccommodationTable)
+                .where(RoomTable.accommodation_id == accommodation_id)
+                .where(AccommodationTable.created_by == username)
+                .options(selectinload(RoomTable.images))
+            )
+        else:
+            result = await db.execute(
+                select(RoomTable)
+                .join(AccommodationTable)
+                .where(AccommodationTable.created_by == username)
+                .options(selectinload(RoomTable.images))
+            )
+    else:
+        raise HTTPException(status_code=403, detail="Invalid role")
+
+    all_rooms = result.scalars().all()
+    logger.info(f"Found {len(all_rooms)} total rooms: {[room.id for room in all_rooms]}")
+
+    if not all_rooms and accommodation_id:
+        raise HTTPException(status_code=404, detail="No rooms found for this accommodation")
+
+    # Obtener todas las reservaciones que se superponen con las fechas dadas
+    result = await db.execute(
+        select(ReservationTable)
+        .where(
+            (ReservationTable.start_date < end_date) &
+            (ReservationTable.end_date > start_date)
+        )
+    )
+    booked_reservations = result.scalars().all()
+    logger.info(f"Found {len(booked_reservations)} booked reservations: {[(r.room_id, r.start_date, r.end_date) for r in booked_reservations]}")
+    booked_room_ids = {reservation.room_id for reservation in booked_reservations}
+    logger.info(f"Booked room IDs: {booked_room_ids}")
+
+    # Filtrar habitaciones disponibles
+    available_rooms = [
+        room for room in all_rooms
+        if room.id not in booked_room_ids
+    ]
+    logger.info(f"Available rooms: {[room.id for room in available_rooms]}")
+
+    return [Room.model_validate(room) for room in available_rooms]

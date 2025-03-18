@@ -13,6 +13,8 @@ from app.services.hotel import (
     get_countries, get_country, get_states, get_state, get_cities, get_city,
     create_reservation, get_reservations, create_image, get_images
 )
+from datetime import date
+from app.models.sqlalchemy_models import UserTable
 
 router = APIRouter()
 
@@ -166,3 +168,14 @@ async def upload_multiple_images_route(
         files: List[UploadFile] = File(...),
 ):
     return await accommodation.upload_images(db, request, files, current_user.username)
+
+
+@router.get("/available_rooms/", response_model=List[Room])
+async def get_available_rooms_route(
+        start_date: date = Query(...),
+        end_date: date = Query(...),
+        accommodation_id: int | None = Query(None),
+        db: AsyncSession = Depends(get_db),
+        current_user: UserTable = Depends(get_current_active_user)
+):
+    return await accommodation.get_available_rooms(db, start_date, end_date, current_user.username, accommodation_id)
