@@ -110,21 +110,30 @@ async def create_room_type_route(
 ):
     return await create_room_type(db, room_type_data)
 
+
+@router.get("/room_types/", response_model=List[RoomType])
+async def get_room_types_route(
+        accommodation_id: int | None = Query(None),
+        db: AsyncSession = Depends(get_db),
+        current_user: UserTable = Depends(get_current_active_user)
+):
+    return await accommodation.get_room_types(db, current_user.username, accommodation_id)
+
 @router.post("/rooms/", response_model=Room)
 async def create_room_route(
         room_data: RoomBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await create_room(db, room_data)
+    return await accommodation.create_room(db, room_data, current_user.username)
 
-@router.get("/rooms/", response_model=List[Room])
-async def get_rooms_route(
+@router.post("/rooms/", response_model=Room)
+async def create_room_route(
+        room_data: RoomBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
-        accommodation_id: Optional[int] = Query(None),
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await get_rooms(db, current_user.username, accommodation_id)
+    return await accommodation.create_room(db, room_data, current_user.username)
 
 @router.post("/reservations/", response_model=Reservation)
 async def create_reservation_route(
@@ -179,3 +188,14 @@ async def get_available_rooms_route(
         current_user: UserTable = Depends(get_current_active_user)
 ):
     return await accommodation.get_available_rooms(db, start_date, end_date, current_user.username, accommodation_id)
+
+
+@router.get("/booked_rooms/", response_model=List[Room])
+async def get_booked_rooms_route(
+        start_date: date = Query(...),
+        end_date: date = Query(...),
+        accommodation_id: int | None = Query(None),
+        db: AsyncSession = Depends(get_db),
+        current_user: UserTable = Depends(get_current_active_user)
+):
+    return await accommodation.get_booked_rooms(db, start_date, end_date, current_user.username, accommodation_id)

@@ -19,7 +19,8 @@ from app.models.sqlalchemy_models import (
     RoomType as RoomTypeTable,
     Room as RoomTable,
     UserTable,
-    Reservation as ReservationTable  # Añadido para get_available_rooms
+    Reservation as ReservationTable,  # Añadido para get_available_rooms,
+    City as CityTable,
 )
 import os
 import uuid
@@ -55,17 +56,40 @@ async def get_accommodations(db: AsyncSession, username: str) -> list[Accommodat
     return [Accommodation.model_validate(accommodation) for accommodation in accommodations]
 
 async def create_accommodation(
-        db: AsyncSession, accommodation: AccommodationBase, username: str
+        db: AsyncSession,
+        accommodation: AccommodationBase,
+        username: str
 ) -> Accommodation:
+    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    db_accommodation = AccommodationTable(**accommodation.model_dump(), created_by=username)
+    # Verificar que la ciudad exista
+    result = await db.execute(
+        select(CityTable).where(CityTable.id == accommodation.city_id)
+    )
+    city = result.scalar_one_or_none()
+    if not city:
+        raise HTTPException(status_code=404, detail="City not found")
+
+    # Crear el alojamiento
+    db_accommodation = AccommodationTable(
+        name=accommodation.name,
+        city_id=accommodation.city_id,
+        created_by=username  # El creador es el usuario autenticado
+    )
     db.add(db_accommodation)
     await db.commit()
-    await db.refresh(db_accommodation)
+
+    # Cargar la relación images para evitar problemas con Pydantic
+    result = await db.execute(
+        select(AccommodationTable)
+        .where(AccommodationTable.id == db_accommodation.id)
+        .options(selectinload(AccommodationTable.images))
+    )
+    db_accommodation = result.scalar_one()
     return Accommodation.model_validate(db_accommodation)
 
 async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> list[Room]:
@@ -122,39 +146,94 @@ async def create_room_type(
     await db.refresh(db_room_type)
     return RoomType.model_validate(db_room_type)
 
-async def create_room(
-        db: AsyncSession, room: RoomBase, accommodation_id: int, room_type_id: int, username: str
-) -> Room:
+async def get_room_types(
+        db: AsyncSession,
+        username: str,
+        accommodation_id: int | None = None
+) -> List[RoomType]:
+    # Verificar que el usuario exista (autenticación básica)
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Construir la consulta base
+    query = select(RoomTypeTable)
+
+    # Filtrar por accommodation_id si se proporciona
+    if accommodation_id:
+        query = query.where(RoomTypeTable.accommodation_id == accommodation_id)
+
+    # Ejecutar la consulta
+    result = await db.execute(query)
+    room_types = result.scalars().all()
+
+    if not room_types and accommodation_id:
+        raise HTTPException(status_code=404, detail="No room types found for this accommodation")
+
+    return [RoomType.model_validate(room_type) for room_type in room_types]
+
+
+async def create_room(
+        db: AsyncSession,
+        room: RoomBase,
+        username: str
+) -> Room:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Verificar que el alojamiento exista
     result = await db.execute(
-        select(AccommodationTable).where(AccommodationTable.id == accommodation_id)
+        select(AccommodationTable).where(AccommodationTable.id == room.accommodation_id)
     )
     accommodation = result.scalar_one_or_none()
     if not accommodation:
         raise HTTPException(status_code=404, detail="Accommodation not found")
 
+    # Verificar que el tipo de habitación exista
     result = await db.execute(
-        select(RoomTypeTable).where(RoomTypeTable.id == room_type_id)
+        select(RoomTypeTable).where(RoomTypeTable.id == room.type_id)
     )
     room_type = result.scalar_one_or_none()
-    if not room_type or room_type.accommodation_id != accommodation_id:
-        raise HTTPException(status_code=404, detail="Room type not found or mismatched")
+    if not room_type:
+        raise HTTPException(status_code=404, detail="Room type not found")
 
+    # Verificar permisos: solo admin o creador del alojamiento
     if user.role != "admin" and accommodation.created_by != username:
         raise HTTPException(status_code=403, detail="Not authorized to add room")
 
+    # Verificar si ya existe una habitación con el mismo accommodation_id y number
+    result = await db.execute(
+        select(RoomTable).where(
+            RoomTable.accommodation_id == room.accommodation_id,
+            RoomTable.number == room.number
+        )
+    )
+    existing_room = result.scalar_one_or_none()
+    if existing_room:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Room with number '{room.number}' already exists for accommodation {room.accommodation_id}"
+        )
+
+    # Crear la habitación
     db_room = RoomTable(
-        **room.model_dump(),
-        accommodation_id=accommodation_id,
-        room_type_id=room_type_id
+        accommodation_id=room.accommodation_id,
+        type_id=room.type_id,
+        number=room.number,
+        is_available=room.isAvailable
     )
     db.add(db_room)
     await db.commit()
-    await db.refresh(db_room)
+
+    # Cargar la relación images para evitar problemas con Pydantic
+    result = await db.execute(
+        select(RoomTable).where(RoomTable.id == db_room.id).options(selectinload(RoomTable.images))
+    )
+    db_room = result.scalar_one()
     return Room.model_validate(db_room)
 
 async def upload_images(
@@ -303,3 +382,79 @@ async def get_available_rooms(
     logger.info(f"Available rooms: {[room.id for room in available_rooms]}")
 
     return [Room.model_validate(room) for room in available_rooms]
+
+async def get_booked_rooms(
+        db: AsyncSession,
+        start_date: date,
+        end_date: date,
+        username: str,
+        accommodation_id: int | None = None
+) -> List[Room]:
+    # Validar fechas
+    if start_date >= end_date:
+        raise HTTPException(
+            status_code=400,
+            detail="Start date must be before end date"
+        )
+
+    # Verificar usuario y permisos
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Obtener todas las habitaciones según permisos
+    if user.role == "admin":
+        if accommodation_id:
+            result = await db.execute(
+                select(RoomTable)
+                .where(RoomTable.accommodation_id == accommodation_id)
+                .options(selectinload(RoomTable.images))
+            )
+        else:
+            result = await db.execute(
+                select(RoomTable)
+                .options(selectinload(RoomTable.images))
+            )
+    elif user.role == "user":
+        if accommodation_id:
+            result = await db.execute(
+                select(RoomTable)
+                .join(AccommodationTable)
+                .where(RoomTable.accommodation_id == accommodation_id)
+                .where(AccommodationTable.created_by == username)
+                .options(selectinload(RoomTable.images))
+            )
+        else:
+            result = await db.execute(
+                select(RoomTable)
+                .join(AccommodationTable)
+                .where(AccommodationTable.created_by == username)
+                .options(selectinload(RoomTable.images))
+            )
+    else:
+        raise HTTPException(status_code=403, detail="Invalid role")
+
+    all_rooms = result.scalars().all()
+
+    if not all_rooms and accommodation_id:
+        raise HTTPException(status_code=404, detail="No rooms found for this accommodation")
+
+    # Obtener todas las reservaciones que se superponen con las fechas dadas
+    result = await db.execute(
+        select(ReservationTable)
+        .where(
+            (ReservationTable.start_date < end_date) &
+            (ReservationTable.end_date > start_date)
+        )
+    )
+    booked_reservations = result.scalars().all()
+    booked_room_ids = {reservation.room_id for reservation in booked_reservations}
+
+    # Filtrar habitaciones reservadas
+    booked_rooms = [
+        room for room in all_rooms
+        if room.id in booked_room_ids
+    ]
+
+    return [Room.model_validate(room) for room in booked_rooms]

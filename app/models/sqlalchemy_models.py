@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -58,10 +58,15 @@ class Room(Base):
     accommodation_id = Column(Integer, ForeignKey('accommodations.id'))
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
+    is_available = Column(Boolean, default=True, nullable=False)  # Nuevo campo
     accommodation = relationship("Accommodation", back_populates="rooms")
     room_type = relationship("RoomType", back_populates="rooms")
     reservations = relationship("Reservation", back_populates="room")
     images = relationship("Image", back_populates="room")  # Relación con imágenes
+
+    __table_args__ = (
+        UniqueConstraint('accommodation_id', 'number', name='uix_accommodation_number'),
+    )
 
 class Reservation(Base):
     __tablename__ = 'reservations'

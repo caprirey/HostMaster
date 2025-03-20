@@ -78,6 +78,7 @@ class RoomBase(BaseModel):
     accommodation_id: int
     type_id: int
     number: str
+    isAvailable: bool = True  # Nuevo campo, opcional con default True
 
 class Room(RoomBase):
     id: int
