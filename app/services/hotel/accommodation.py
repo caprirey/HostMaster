@@ -11,7 +11,10 @@ from app.models.pydantic_models import (
     RoomBase,
     ImageBase,
     Image,
-    Reservation  # Añadido para get_available_rooms
+    Reservation,
+    # Añadido para get_available_rooms
+    AccommodationUpdate,
+    RoomUpdate
 )
 from app.models.sqlalchemy_models import (
     Image as ImageTable,
@@ -78,7 +81,9 @@ async def create_accommodation(
     db_accommodation = AccommodationTable(
         name=accommodation.name,
         city_id=accommodation.city_id,
-        created_by=username  # El creador es el usuario autenticado
+        created_by=username,  # El creador es el usuario autenticado
+        address=accommodation.address,
+        information=accommodation.information
     )
     db.add(db_accommodation)
     await db.commit()
@@ -91,6 +96,51 @@ async def create_accommodation(
     )
     db_accommodation = result.scalar_one()
     return Accommodation.model_validate(db_accommodation)
+
+async def update_accommodation(
+        db: AsyncSession,
+        accommodation_id: int,
+        accommodation_update: AccommodationUpdate,
+        username: str
+) -> Accommodation:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Buscar el alojamiento existente
+    result = await db.execute(
+        select(AccommodationTable)
+        .where(AccommodationTable.id == accommodation_id)
+        .options(selectinload(AccommodationTable.images))
+    )
+    db_accommodation = result.scalar_one_or_none()
+    if not db_accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    # Verificar permisos: solo admin o creador del alojamiento
+    if user.role != "admin" and db_accommodation.created_by != username:
+        raise HTTPException(status_code=403, detail="Not authorized to update this accommodation")
+
+    # Verificar que la ciudad exista si se proporciona city_id
+    if accommodation_update.city_id is not None:
+        result = await db.execute(
+            select(CityTable).where(CityTable.id == accommodation_update.city_id)
+        )
+        city = result.scalar_one_or_none()
+        if not city:
+            raise HTTPException(status_code=404, detail="City not found")
+
+    # Actualizar los campos proporcionados
+    update_data = accommodation_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_accommodation, key, value)
+
+    await db.commit()
+    await db.refresh(db_accommodation)
+    return Accommodation.model_validate(db_accommodation)
+
 
 async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> list[Room]:
     result = await db.execute(select(UserTable).where(UserTable.username == username))
@@ -458,3 +508,120 @@ async def get_booked_rooms(
     ]
 
     return [Room.model_validate(room) for room in booked_rooms]
+
+
+async def get_room_type(
+        db: AsyncSession,
+        room_type_id: int
+) -> RoomType:
+    # Buscar el RoomType por id
+    result = await db.execute(
+        select(RoomTypeTable).where(RoomTypeTable.id == room_type_id)
+    )
+    db_room_type = result.scalar_one_or_none()
+    if not db_room_type:
+        raise HTTPException(status_code=404, detail="Room type not found")
+
+    return RoomType.model_validate(db_room_type)
+
+
+async def update_room(
+        db: AsyncSession,
+        room_id: int,
+        room_update: RoomUpdate,
+        username: str
+) -> Room:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Buscar la habitación existente
+    result = await db.execute(
+        select(RoomTable)
+        .where(RoomTable.id == room_id)
+        .options(selectinload(RoomTable.images))
+    )
+    db_room = result.scalar_one_or_none()
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Verificar permisos: solo admin o creador del alojamiento
+    result = await db.execute(
+        select(AccommodationTable).where(AccommodationTable.id == db_room.accommodation_id)
+    )
+    accommodation = result.scalar_one_or_none()
+    if not accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+    if user.role != "admin" and accommodation.created_by != username:
+        raise HTTPException(status_code=403, detail="Not authorized to update this room")
+
+    # Verificar que el accommodation_id exista si se proporciona
+    if room_update.accommodation_id is not None:
+        result = await db.execute(
+            select(AccommodationTable).where(AccommodationTable.id == room_update.accommodation_id)
+        )
+        new_accommodation = result.scalar_one_or_none()
+        if not new_accommodation:
+            raise HTTPException(status_code=404, detail="New accommodation not found")
+
+    # Verificar que el type_id exista si se proporciona
+    if room_update.type_id is not None:
+        result = await db.execute(
+            select(RoomTypeTable).where(RoomTypeTable.id == room_update.type_id)
+        )
+        room_type = result.scalar_one_or_none()
+        if not room_type:
+            raise HTTPException(status_code=404, detail="Room type not found")
+
+    # Verificar unicidad de accommodation_id y number si se actualizan
+    if room_update.accommodation_id is not None or room_update.number is not None:
+        check_accommodation_id = room_update.accommodation_id if room_update.accommodation_id is not None else db_room.accommodation_id
+        check_number = room_update.number if room_update.number is not None else db_room.number
+        result = await db.execute(
+            select(RoomTable)
+            .where(RoomTable.accommodation_id == check_accommodation_id)
+            .where(RoomTable.number == check_number)
+            .where(RoomTable.id != room_id)  # Excluir la habitación actual
+        )
+        existing_room = result.scalar_one_or_none()
+        if existing_room:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Room with number '{check_number}' already exists for accommodation {check_accommodation_id}"
+            )
+
+    # Actualizar los campos proporcionados
+    update_data = room_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_room, key, value)
+
+    await db.commit()
+    await db.refresh(db_room)
+    return Room.model_validate(db_room)
+
+async def get_all_rooms(
+        db: AsyncSession,
+        username: str
+) -> List[Room]:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Construir la consulta de habitaciones
+    query = select(RoomTable).options(selectinload(RoomTable.images))
+
+    # Filtrar según el rol del usuario
+    if user.role != "admin":
+        # Solo habitaciones de alojamientos creados por el usuario
+        query = query.join(AccommodationTable).where(AccommodationTable.created_by == username)
+
+    # Ejecutar la consulta
+    result = await db.execute(query)
+    rooms = result.scalars().all()
+
+    # Convertir a modelos Pydantic
+    return [Room.model_validate(room) for room in rooms]

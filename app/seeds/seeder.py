@@ -89,8 +89,8 @@ async def seed_database(db: AsyncSession):
     # Alojamientos
     medellin_id = [c.id for c in cities if c.name == "Medellín"][0]
     bogota_id = [c.id for c in cities if c.name == "Bogotá D.C."][0]
-    hotel_poblado = Accommodation(name="Hotel El Poblado Plaza", city_id=medellin_id, created_by="admin")
-    hotel_tequendama = Accommodation(name="Hotel Tequendama", city_id=bogota_id, created_by="maria")
+    hotel_poblado = Accommodation(name="Hotel El Poblado Plaza", city_id=medellin_id, created_by="admin", address="calle falsa 123", information="")
+    hotel_tequendama = Accommodation(name="Hotel Tequendama", city_id=bogota_id, created_by="maria", address="calle falsa 456", information="")
     db.add_all([hotel_poblado, hotel_tequendama])
     await db.flush()
 

@@ -42,6 +42,8 @@ class Accommodation(Base):
     name = Column(String, nullable=False)
     city_id = Column(Integer, ForeignKey('cities.id'))
     created_by = Column(String, ForeignKey('users.username'), nullable=False)
+    address = Column(String, nullable=False)  # Nuevo campo
+    information = Column(String, nullable=False)  # Nuevo campo
     rooms = relationship("Room", back_populates="accommodation")
     city = relationship("City", back_populates="accommodations")
     images = relationship("Image", back_populates="accommodation")  # Relación con imágenes

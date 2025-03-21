@@ -60,6 +60,14 @@ class City(CityBase):
 class AccommodationBase(BaseModel):
     name: str
     city_id: int
+    address: str
+    information: str
+
+class AccommodationUpdate(BaseModel):
+    name: Optional[str] = None
+    city_id: Optional[int] = None
+    address: Optional[str] = None
+    information: Optional[str] = None
 
 class Accommodation(AccommodationBase):
     id: int
@@ -79,6 +87,12 @@ class RoomBase(BaseModel):
     type_id: int
     number: str
     isAvailable: bool = True  # Nuevo campo, opcional con default True
+
+class RoomUpdate(BaseModel):
+    accommodation_id: Optional[int] = None
+    type_id: Optional[int] = None
+    number: Optional[str] = None
+    isAvailable: Optional[bool] = None
 
 class Room(RoomBase):
     id: int

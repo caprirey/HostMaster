@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
-    Accommodation, AccommodationBase, Room, RoomBase,
+    Accommodation, AccommodationBase, Room, RoomBase, RoomUpdate,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
-    Reservation, ReservationBase, Image, ImageBase
+    Reservation, ReservationBase, Image, ImageBase, AccommodationUpdate
 )
 from app.services.hotel import (
     create_accommodation, create_room, get_accommodations, accommodation, get_rooms,
@@ -102,6 +102,16 @@ async def get_accommodations_route(
 ):
     return await get_accommodations(db, current_user.username)
 
+
+@router.patch("/accommodations/{id}", response_model=Accommodation)
+async def update_accommodation_route(
+        id: int,
+        accommodation_data: AccommodationUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await accommodation.update_accommodation(db, id, accommodation_data, current_user.username)
+
 @router.post("/room_types/", response_model=RoomType)
 async def create_room_type_route(
         room_type_data: RoomTypeBase,
@@ -119,6 +129,15 @@ async def get_room_types_route(
 ):
     return await accommodation.get_room_types(db, current_user.username, accommodation_id)
 
+
+@router.get("/room_types/{id}", response_model=RoomType)
+async def get_room_type_route(
+        id: int,
+        db: Annotated[AsyncSession, Depends(get_db)]
+):
+    return await accommodation.get_room_type(db, id)
+
+
 @router.post("/rooms/", response_model=Room)
 async def create_room_route(
         room_data: RoomBase,
@@ -134,6 +153,15 @@ async def create_room_route(
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
     return await accommodation.create_room(db, room_data, current_user.username)
+
+@router.patch("/rooms/{id}", response_model=Room)
+async def update_room_route(
+        id: int,
+        room_data: RoomUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await accommodation.update_room(db, id, room_data, current_user.username)
 
 @router.post("/reservations/", response_model=Reservation)
 async def create_reservation_route(
@@ -199,3 +227,11 @@ async def get_booked_rooms_route(
         current_user: UserTable = Depends(get_current_active_user)
 ):
     return await accommodation.get_booked_rooms(db, start_date, end_date, current_user.username, accommodation_id)
+
+
+@router.get("/rooms/", response_model=List[Room])
+async def get_all_rooms_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await accommodation.get_all_rooms(db, current_user.username)

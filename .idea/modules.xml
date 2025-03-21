@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/HostMasterAPI.iml" filepath="$PROJECT_DIR$/HostMasterAPI.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/HostMaster.iml" filepath="$PROJECT_DIR$/.idea/HostMaster.iml" />
     </modules>
   </component>
 </project>
