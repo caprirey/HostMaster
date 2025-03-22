@@ -1,5 +1,5 @@
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
@@ -15,6 +15,10 @@ from app.services.hotel import (
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
+
+
+from app.services.hotel import image as images
+
 
 router = APIRouter()
 
@@ -103,6 +107,15 @@ async def update_accommodation_route(
 ):
     return await accommodation.update_accommodation(db, accommodation_id, accommodation_data, current_user.username)
 
+@router.delete("/accommodations/{accommodation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_accommodation_route(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await accommodation.delete_accommodation(db, accommodation_id, current_user.username)
+    return None
+
 @router.post("/room_types/", response_model=RoomType)
 async def create_room_type_route(
         room_type_data: RoomTypeBase,
@@ -153,6 +166,15 @@ async def update_room_route(
 ):
     return await accommodation.update_room(db, room_id, room_data, current_user.username)
 
+@router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_room_route(
+        room_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await accommodation.delete_room(db, room_id, current_user.username)
+    return None
+
 @router.post("/reservations/", response_model=Reservation)
 async def create_reservation_route(
         reservation_data: ReservationBase,
@@ -171,12 +193,22 @@ async def update_reservation_route(
 ):
     return await reservation.update_reservation(db, reservation_id, reservation_data, current_user.username)
 
+
 @router.get("/reservations/", response_model=List[Reservation])
 async def get_reservations_route(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_reservations(db, current_user.username)
+
+@router.delete("/reservations/{reservation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_reservation_route(
+        reservation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await reservation.delete_reservation(db, reservation_id, current_user.username)
+    return None
 
 @router.post("/images/", response_model=Image)
 async def create_image_route(
@@ -205,6 +237,17 @@ async def upload_multiple_images_route(
         files: List[UploadFile] = File(...),
 ):
     return await accommodation.upload_images(db, request, files, current_user.username)
+
+
+@router.delete("/images", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_images_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+        accommodation_id: Optional[int] = None,
+        room_id: Optional[int] = None,
+):
+    await images.delete_images(db, accommodation_id, room_id, current_user.username)
+    return None
 
 
 @router.get("/available_rooms/", response_model=List[Room])

@@ -623,3 +623,80 @@ async def get_all_rooms(
 
     # Convertir a modelos Pydantic
     return [Room.model_validate(room) for room in rooms]
+
+
+async def delete_room(db: AsyncSession, room_id: int, username: str) -> None:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Buscar la habitación con su alojamiento y reservas
+    result = await db.execute(
+        select(RoomTable)
+        .where(RoomTable.id == room_id)
+        .options(selectinload(RoomTable.accommodation), selectinload(RoomTable.reservations))
+    )
+    db_room = result.scalar_one_or_none()
+    if not db_room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Verificar permisos: solo el creador del alojamiento o un admin puede eliminar
+    if user.role != "admin" and db_room.accommodation.created_by != username:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this room")
+
+    # Verificar si hay reservas asociadas
+    if db_room.reservations:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete room with existing reservations"
+        )
+
+    # Eliminar imágenes asociadas (si las hay)
+    result = await db.execute(
+        select(ImageTable).where(ImageTable.room_id == room_id)
+    )
+    images = result.scalars().all()
+    for image in images:
+        await db.delete(image)
+
+    # Eliminar la habitación
+    await db.delete(db_room)
+    await db.commit()
+
+async def delete_accommodation(db: AsyncSession, accommodation_id: int, username: str) -> None:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Buscar el alojamiento con sus habitaciones e imágenes
+    result = await db.execute(
+        select(AccommodationTable)
+        .where(AccommodationTable.id == accommodation_id)
+        .options(selectinload(AccommodationTable.rooms), selectinload(AccommodationTable.images))
+    )
+    db_accommodation = result.scalar_one_or_none()
+    if not db_accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    # Verificar permisos: solo el creador o un admin puede eliminar
+    if user.role != "admin" and db_accommodation.created_by != username:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this accommodation")
+
+    # Verificar si hay habitaciones asociadas
+    if db_accommodation.rooms:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete accommodation with associated rooms"
+        )
+
+    # Eliminar imágenes asociadas al alojamiento
+    for image in db_accommodation.images:
+        await db.delete(image)
+
+    # Eliminar el alojamiento
+    await db.delete(db_accommodation)
+    await db.commit()

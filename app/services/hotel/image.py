@@ -8,6 +8,7 @@ from app.models.sqlalchemy_models import (
     Image as ImageTable, Accommodation as AccommodationTable, Room as RoomTable, UserTable
 )
 from app.config.settings import BASE_URL, STATIC_DIR, IMAGES_DIR
+from sqlalchemy.orm import selectinload
 
 STATIC_PATH = os.path.join(STATIC_DIR, IMAGES_DIR)
 
@@ -105,3 +106,72 @@ async def get_images(db: AsyncSession, username: str, accommodation_id: int = No
     result = await db.execute(query)
     images = result.scalars().all()
     return [Image.model_validate(image) for image in images]
+
+
+async def delete_images(
+        db: AsyncSession,
+        accommodation_id: int | None = None,
+        room_id: int | None = None,
+        username: str = None
+) -> None:
+    # Verificar que se proporcione al menos un ID
+    if accommodation_id is None and room_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Must provide either accommodation_id or room_id"
+        )
+
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Caso 1: Eliminar imágenes de un alojamiento
+    if accommodation_id is not None:
+        result = await db.execute(
+            select(AccommodationTable)
+            .where(AccommodationTable.id == accommodation_id)
+            .options(selectinload(AccommodationTable.images))
+        )
+        db_accommodation = result.scalar_one_or_none()
+        if not db_accommodation:
+            raise HTTPException(status_code=404, detail="Accommodation not found")
+
+        # Verificar permisos: solo el creador o un admin puede eliminar imágenes
+        if user.role != "admin" and db_accommodation.created_by != username:
+            raise HTTPException(status_code=403, detail="Not authorized to delete images for this accommodation")
+
+        # Eliminar imágenes asociadas al alojamiento
+        result = await db.execute(
+            select(ImageTable).where(ImageTable.accommodation_id == accommodation_id)
+        )
+        images = result.scalars().all()
+        for image in images:
+            await db.delete(image)
+
+    # Caso 2: Eliminar imágenes de una habitación
+    if room_id is not None:
+        result = await db.execute(
+            select(RoomTable)
+            .where(RoomTable.id == room_id)
+            .options(selectinload(RoomTable.accommodation))
+        )
+        db_room = result.scalar_one_or_none()
+        if not db_room:
+            raise HTTPException(status_code=404, detail="Room not found")
+
+        # Verificar permisos: solo el creador del alojamiento o un admin puede eliminar imágenes
+        if user.role != "admin" and db_room.accommodation.created_by != username:
+            raise HTTPException(status_code=403, detail="Not authorized to delete images for this room")
+
+        # Eliminar imágenes asociadas a la habitación
+        result = await db.execute(
+            select(ImageTable).where(ImageTable.room_id == room_id)
+        )
+        images = result.scalars().all()
+        for image in images:
+            await db.delete(image)
+
+    # Confirmar cambios
+    await db.commit()

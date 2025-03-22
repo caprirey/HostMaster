@@ -162,3 +162,26 @@ async def update_reservation(
     await db.commit()
     await db.refresh(db_reservation)
     return Reservation.model_validate(db_reservation)
+
+async def delete_reservation(db: AsyncSession, reservation_id: int, username: str) -> None:
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Buscar la reserva existente
+    result = await db.execute(
+        select(ReservationTable).where(ReservationTable.id == reservation_id)
+    )
+    db_reservation = result.scalar_one_or_none()
+    if not db_reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+
+    # Verificar permisos: solo el creador de la reserva o un admin puede eliminar
+    if user.role != "admin" and db_reservation.user_username != username:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this reservation")
+
+    # Eliminar la reserva
+    await db.delete(db_reservation)
+    await db.commit()
