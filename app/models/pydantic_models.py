@@ -77,6 +77,7 @@ class Accommodation(AccommodationBase):
 
 class RoomTypeBase(BaseModel):
     name: str
+    max_guests: int
 
 class RoomType(RoomTypeBase):
     id: int
@@ -87,12 +88,14 @@ class RoomBase(BaseModel):
     type_id: int
     number: str
     isAvailable: bool = True  # Nuevo campo, opcional con default True
+    price: float
 
 class RoomUpdate(BaseModel):
     accommodation_id: Optional[int] = None
     type_id: Optional[int] = None
     number: Optional[str] = None
     isAvailable: Optional[bool] = None
+    price: Optional[float] = None
 
 class Room(RoomBase):
     id: int
@@ -103,6 +106,14 @@ class ReservationBase(BaseModel):
     room_id: int
     start_date: date
     end_date: date
+    guest_count: int  # Nuevo campo para el número de huéspedes
+
+class ReservationUpdate(BaseModel):
+    room_id: Optional[int] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    guest_count: Optional[int] = None  # Opcional para actualizaciones
+
 
 class Reservation(ReservationBase):
     id: int

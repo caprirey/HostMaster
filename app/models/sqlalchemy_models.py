@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -52,6 +52,7 @@ class RoomType(Base):
     __tablename__ = 'room_types'
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    max_guests = Column(Integer, nullable=False)
     rooms = relationship("Room", back_populates="room_type")
 
 class Room(Base):
@@ -60,6 +61,7 @@ class Room(Base):
     accommodation_id = Column(Integer, ForeignKey('accommodations.id'))
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
     is_available = Column(Boolean, default=True, nullable=False)  # Nuevo campo
     accommodation = relationship("Accommodation", back_populates="rooms")
     room_type = relationship("RoomType", back_populates="rooms")
@@ -77,6 +79,7 @@ class Reservation(Base):
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
+    guest_count = Column(Integer, nullable=False) # Nuevo campo
     user = relationship("UserTable", back_populates="reservations")
     room = relationship("Room", back_populates="reservations")
 

@@ -5,13 +5,13 @@ from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase, RoomUpdate,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
-    Reservation, ReservationBase, Image, ImageBase, AccommodationUpdate
+    Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate
 )
 from app.services.hotel import (
-    create_accommodation, create_room, get_accommodations, accommodation, get_rooms,
+    create_accommodation, get_accommodations, accommodation,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
-    create_reservation, get_reservations, create_image, get_images
+    create_reservation, get_reservations, create_image, get_images, reservation
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
@@ -22,14 +22,12 @@ router = APIRouter()
 async def create_country_route(
         country_data: CountryBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await create_country(db, country_data)
 
 @router.get("/countries/", response_model=List[Country])
 async def get_countries_route(
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_countries(db)
 
@@ -37,7 +35,6 @@ async def get_countries_route(
 async def get_country_route(
         country_id: int,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_country(db, country_id)
 
@@ -45,14 +42,12 @@ async def get_country_route(
 async def create_state_route(
         state_data: StateBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await create_state(db, state_data)
 
 @router.get("/states/", response_model=List[State])
 async def get_states_route(
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_states(db)
 
@@ -60,7 +55,6 @@ async def get_states_route(
 async def get_state_route(
         state_id: int,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_state(db, state_id)
 
@@ -68,14 +62,12 @@ async def get_state_route(
 async def create_city_route(
         city_data: CityBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await create_city(db, city_data)
 
 @router.get("/cities/", response_model=List[City])
 async def get_cities_route(
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_cities(db)
 
@@ -83,7 +75,6 @@ async def get_cities_route(
 async def get_city_route(
         city_id: int,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await get_city(db, city_id)
 
@@ -105,12 +96,12 @@ async def get_accommodations_route(
 
 @router.patch("/accommodations/{id}", response_model=Accommodation)
 async def update_accommodation_route(
-        id: int,
+        accommodation_id: int,
         accommodation_data: AccommodationUpdate,
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await accommodation.update_accommodation(db, id, accommodation_data, current_user.username)
+    return await accommodation.update_accommodation(db, accommodation_id, accommodation_data, current_user.username)
 
 @router.post("/room_types/", response_model=RoomType)
 async def create_room_type_route(
@@ -118,24 +109,23 @@ async def create_room_type_route(
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[User, Depends(get_current_active_user)],
 ):
-    return await create_room_type(db, room_type_data)
+    return await create_room_type(db, room_type_data, current_user.username)
 
 
 @router.get("/room_types/", response_model=List[RoomType])
 async def get_room_types_route(
-        accommodation_id: int | None = Query(None),
         db: AsyncSession = Depends(get_db),
         current_user: UserTable = Depends(get_current_active_user)
 ):
-    return await accommodation.get_room_types(db, current_user.username, accommodation_id)
+    return await accommodation.get_room_types(db, current_user.username)
 
 
 @router.get("/room_types/{id}", response_model=RoomType)
 async def get_room_type_route(
-        id: int,
+        room_type_id: int,
         db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    return await accommodation.get_room_type(db, id)
+    return await accommodation.get_room_type(db, room_type_id)
 
 
 @router.post("/rooms/", response_model=Room)
@@ -156,12 +146,12 @@ async def create_room_route(
 
 @router.patch("/rooms/{id}", response_model=Room)
 async def update_room_route(
-        id: int,
+        room_id: int,
         room_data: RoomUpdate,
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await accommodation.update_room(db, id, room_data, current_user.username)
+    return await accommodation.update_room(db, room_id, room_data, current_user.username)
 
 @router.post("/reservations/", response_model=Reservation)
 async def create_reservation_route(
@@ -170,6 +160,16 @@ async def create_reservation_route(
         current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return await create_reservation(db, reservation_data, current_user.username)
+
+
+@router.patch("/reservations/{reservation_id}", response_model=Reservation)
+async def update_reservation_route(
+        reservation_id: int,
+        reservation_data: ReservationUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await reservation.update_reservation(db, reservation_id, reservation_data, current_user.username)
 
 @router.get("/reservations/", response_model=List[Reservation])
 async def get_reservations_route(

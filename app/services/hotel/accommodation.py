@@ -173,24 +173,22 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> l
     return [Room.model_validate(room) for room in rooms]
 
 async def create_room_type(
-        db: AsyncSession, room_type: RoomTypeBase, accommodation_id: int, username: str
+        db: AsyncSession,
+        room_type: RoomTypeBase,
+        username: str
 ) -> RoomType:
+    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    result = await db.execute(
-        select(AccommodationTable).where(AccommodationTable.id == accommodation_id)
-    )
-    accommodation = result.scalar_one_or_none()
-    if not accommodation:
-        raise HTTPException(status_code=404, detail="Accommodation not found")
+    # Verificar permisos: solo admin puede crear tipos de habitación
+    if user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can create room types")
 
-    if user.role != "admin" and accommodation.created_by != username:
-        raise HTTPException(status_code=403, detail="Not authorized to add room type")
-
-    db_room_type = RoomTypeTable(**room_type.model_dump(), accommodation_id=accommodation_id)
+    # Crear el tipo de habitación
+    db_room_type = RoomTypeTable(**room_type.model_dump())
     db.add(db_room_type)
     await db.commit()
     await db.refresh(db_room_type)
@@ -198,8 +196,7 @@ async def create_room_type(
 
 async def get_room_types(
         db: AsyncSession,
-        username: str,
-        accommodation_id: int | None = None
+        username: str
 ) -> List[RoomType]:
     # Verificar que el usuario exista (autenticación básica)
     result = await db.execute(select(UserTable).where(UserTable.username == username))
@@ -211,15 +208,15 @@ async def get_room_types(
     query = select(RoomTypeTable)
 
     # Filtrar por accommodation_id si se proporciona
-    if accommodation_id:
-        query = query.where(RoomTypeTable.accommodation_id == accommodation_id)
+    # if accommodation_id:
+    #    query = query.where(RoomTypeTable.accommodation_id == accommodation_id)
 
     # Ejecutar la consulta
     result = await db.execute(query)
     room_types = result.scalars().all()
 
-    if not room_types and accommodation_id:
-        raise HTTPException(status_code=404, detail="No room types found for this accommodation")
+    # if not room_types and accommodation_id:
+    #    raise HTTPException(status_code=404, detail="No room types found for this accommodation")
 
     return [RoomType.model_validate(room_type) for room_type in room_types]
 
@@ -274,7 +271,8 @@ async def create_room(
         accommodation_id=room.accommodation_id,
         type_id=room.type_id,
         number=room.number,
-        is_available=room.isAvailable
+        is_available=room.isAvailable,
+        price = room.price
     )
     db.add(db_room)
     await db.commit()

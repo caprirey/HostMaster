@@ -95,14 +95,15 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     # Tipos de habitación
-    sencilla = RoomType(name="Habitación Sencilla")
-    doble = RoomType(name="Habitación Doble")
-    db.add_all([sencilla, doble])
+    sencilla = RoomType(name="Habitación Sencilla", max_guests=1)
+    doble = RoomType(name="Habitación Doble", max_guests=2)
+    familiar = RoomType(name="Habitación Familiar", max_guests=4)
+    db.add_all([sencilla, doble, familiar])
     await db.flush()
 
     # Habitaciones
-    room_101 = Room(accommodation_id=hotel_poblado.id, type_id=sencilla.id, number="101")
-    room_201 = Room(accommodation_id=hotel_tequendama.id, type_id=doble.id, number="201")
+    room_101 = Room(accommodation_id=hotel_poblado.id, type_id=sencilla.id, number="101", price="60000")
+    room_201 = Room(accommodation_id=hotel_tequendama.id, type_id=doble.id, number="201", price="60000")
     db.add_all([room_101, room_201])
     await db.flush()
 
@@ -111,20 +112,22 @@ async def seed_database(db: AsyncSession):
         user_username="admin",
         room_id=room_101.id,
         start_date=date(2025, 4, 10),
-        end_date=date(2025, 4, 15)
+        end_date=date(2025, 4, 15),
+        guest_count = 1
     )
     reservation_2 = Reservation(
         user_username="maria",
         room_id=room_201.id,
         start_date=date(2025, 5, 1),
-        end_date=date(2025, 5, 5)
+        end_date=date(2025, 5, 5),
+        guest_count = 1
     )
     db.add_all([reservation_1, reservation_2])
     await db.flush()
 
     # Imágenes
-    image_1 = Image(url="http://hotelescolombia.com/images/poblado_plaza.jpg", accommodation_id=hotel_poblado.id)
-    image_2 = Image(url="http://hotelescolombia.com/images/room_101.jpg", room_id=room_101.id)
+    image_1 = Image(url="static/images/hotel_demo.jpg", accommodation_id=hotel_poblado.id)
+    image_2 = Image(url="static/images/room_demo.jpg", room_id=room_101.id)
     db.add_all([image_1, image_2])
     await db.flush()
 
