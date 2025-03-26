@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -82,6 +82,7 @@ class Reservation(Base):
     guest_count = Column(Integer, nullable=False) # Nuevo campo
     user = relationship("UserTable", back_populates="reservations")
     room = relationship("Room", back_populates="reservations")
+    extra_services = relationship("ExtraService", secondary="reservation_extra_service", back_populates="reservations")  # Nueva relación
 
 class Image(Base):
     __tablename__ = 'images'
@@ -91,3 +92,21 @@ class Image(Base):
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=True)
     accommodation = relationship("Accommodation", back_populates="images")
     room = relationship("Room", back_populates="images")
+
+
+# Nueva tabla ExtraService
+class ExtraService(Base):
+    __tablename__ = 'extra_services'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # Nombre del servicio (e.g., "Desayuno")
+    description = Column(String, nullable=True)  # Descripción opcional
+    price = Column(Float, nullable=False)  # Precio del servicio
+    reservations = relationship("Reservation", secondary="reservation_extra_service", back_populates="extra_services")  # Relación inversa
+
+# Tabla intermedia ReservationExtraService
+reservation_extra_service = Table(
+    'reservation_extra_service',
+    Base.metadata,
+    Column('reservation_id', Integer, ForeignKey('reservations.id'), primary_key=True),
+    Column('extra_service_id', Integer, ForeignKey('extra_services.id'), primary_key=True)
+)

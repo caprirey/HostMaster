@@ -118,6 +118,7 @@ class ReservationUpdate(BaseModel):
 class Reservation(ReservationBase):
     id: int
     user_username: str
+    extra_services: List["ExtraService"] = []  # Nueva relación
     model_config = {"from_attributes": True}
 
 class ImageBase(BaseModel):
@@ -127,4 +128,22 @@ class ImageBase(BaseModel):
 class Image(ImageBase):
     id: int
     url: str
+    model_config = {"from_attributes": True}
+
+# Nuevos modelos para ExtraService
+class ExtraServiceBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+
+class ExtraServiceCreate(ExtraServiceBase):
+    pass  # Hereda todo de ExtraServiceBase
+
+class ExtraServiceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+
+class ExtraService(ExtraServiceBase):
+    id: int
     model_config = {"from_attributes": True}
