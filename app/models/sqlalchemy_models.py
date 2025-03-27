@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float, Table
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float, Table, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -13,6 +14,7 @@ class UserTable(Base):
     disabled = Column(Boolean, default=False)
     role = Column(String, default="user")
     reservations = relationship("Reservation", back_populates="user")
+    reviews = relationship("Review", back_populates="user")  # Nueva relación
 
 class Country(Base):
     __tablename__ = 'countries'
@@ -47,6 +49,7 @@ class Accommodation(Base):
     rooms = relationship("Room", back_populates="accommodation")
     city = relationship("City", back_populates="accommodations")
     images = relationship("Image", back_populates="accommodation")  # Relación con imágenes
+    reviews = relationship("Review", back_populates="accommodation")  # Nueva relación
 
 class RoomType(Base):
     __tablename__ = 'room_types'
@@ -67,6 +70,7 @@ class Room(Base):
     room_type = relationship("RoomType", back_populates="rooms")
     reservations = relationship("Reservation", back_populates="room")
     images = relationship("Image", back_populates="room")  # Relación con imágenes
+    inventory_items = relationship("RoomInventory", back_populates="room")  # Nueva relación
 
     __table_args__ = (
         UniqueConstraint('accommodation_id', 'number', name='uix_accommodation_number'),
@@ -110,3 +114,36 @@ reservation_extra_service = Table(
     Column('reservation_id', Integer, ForeignKey('reservations.id'), primary_key=True),
     Column('extra_service_id', Integer, ForeignKey('extra_services.id'), primary_key=True)
 )
+
+# Nuevo modelo Review
+class Review(Base):
+    __tablename__ = 'reviews'
+    id = Column(Integer, primary_key=True, index=True)
+    accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=False)
+    user_username = Column(String, ForeignKey('users.username'), nullable=False)
+    rating = Column(Integer, nullable=False)  # Calificación de 1 a 5
+    comment = Column(String, nullable=True)  # Comentario opcional
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Fecha de creación
+
+    accommodation = relationship("Accommodation", back_populates="reviews")
+    user = relationship("UserTable", back_populates="reviews")
+
+    __table_args__ = (
+        UniqueConstraint('accommodation_id', 'user_username', name='uix_accommodation_user'),
+    )
+
+    # Nuevo modelo RoomInventory
+class RoomInventory(Base):
+    __tablename__ = 'room_inventory'
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
+    product_name = Column(String, nullable=False)  # Nombre del producto
+    quantity = Column(Integer, nullable=False, default=0)  # Cantidad disponible
+    min_quantity = Column(Integer, nullable=False, default=0)  # Cantidad mínima requerida
+    needs_restock = Column(Boolean, nullable=False, default=False)  # ¿Necesita reposición?
+
+    room = relationship("Room", back_populates="inventory_items")
+
+    __table_args__ = (
+        UniqueConstraint('room_id', 'product_name', name='uix_room_product'),
+    )

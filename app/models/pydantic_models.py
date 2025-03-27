@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
-from datetime import date
+from datetime import date, datetime
+
 
 # Auth Models
 class Token(BaseModel):
@@ -18,6 +19,7 @@ class UserBase(BaseModel):
     role: str = "user"
 
 class User(UserBase):
+    reviews: List["Review"] = []  # Nueva relación
     model_config = {"from_attributes": True}
 
 class UserInDB(User):
@@ -73,6 +75,7 @@ class Accommodation(AccommodationBase):
     id: int
     created_by: str
     images: List["Image"] = []
+    reviews: List["Review"] = []  # Nueva relación
     model_config = {"from_attributes": True}
 
 class RoomTypeBase(BaseModel):
@@ -100,6 +103,7 @@ class RoomUpdate(BaseModel):
 class Room(RoomBase):
     id: int
     images: List["Image"] = []
+    inventory_items: List["RoomInventory"] = []  # Nueva relación
     model_config = {"from_attributes": True}
 
 class ReservationBase(BaseModel):
@@ -146,4 +150,87 @@ class ExtraServiceUpdate(BaseModel):
 
 class ExtraService(ExtraServiceBase):
     id: int
+    model_config = {"from_attributes": True}
+
+
+# Nuevos modelos para Review
+class ReviewBase(BaseModel):
+    accommodation_id: int
+    rating: int
+    comment: Optional[str] = None
+
+    @field_validator('rating')
+    @classmethod
+    def rating_must_be_valid(cls, v: int) -> int:
+        if v < 1 or v > 5:
+            raise ValueError('Rating must be between 1 and 5')
+        return v
+
+class ReviewCreate(ReviewBase):
+    pass
+
+class ReviewUpdate(BaseModel):
+    rating: Optional[int] = None
+    comment: Optional[str] = None
+
+    @field_validator('rating')
+    @classmethod
+    def rating_must_be_valid_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 1 or v > 5):
+            raise ValueError('Rating must be between 1 and 5')
+        return v
+
+class Review(ReviewBase):
+    id: int
+    user_username: str
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+# Nuevos modelos para RoomInventory
+class RoomInventoryBase(BaseModel):
+    room_id: int
+    product_name: str
+    quantity: int
+    min_quantity: int
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError('Quantity must be non-negative')
+        return v
+
+    @field_validator('min_quantity')
+    @classmethod
+    def min_quantity_must_be_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError('Min quantity must be non-negative')
+        return v
+
+class RoomInventoryCreate(RoomInventoryBase):
+    pass
+
+class RoomInventoryUpdate(BaseModel):
+    quantity: Optional[int] = None
+    min_quantity: Optional[int] = None
+    needs_restock: Optional[bool] = None
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_non_negative_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError('Quantity must be non-negative')
+        return v
+
+    @field_validator('min_quantity')
+    @classmethod
+    def min_quantity_must_be_non_negative_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError('Min quantity must be non-negative')
+        return v
+
+class RoomInventory(RoomInventoryBase):
+    id: int
+    needs_restock: bool
     model_config = {"from_attributes": True}
