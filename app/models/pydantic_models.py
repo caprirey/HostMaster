@@ -234,3 +234,18 @@ class RoomInventory(RoomInventoryBase):
     id: int
     needs_restock: bool
     model_config = {"from_attributes": True}
+
+
+# Nuevo modelo para ReservationExtraService
+class ReservationExtraServiceCreate(BaseModel):
+    reservation_id: int
+    extra_service_id: int
+
+class ReservationExtraService(BaseModel):
+    reservation_id: int
+    extra_service_id: int
+    model_config = {"from_attributes": True}
+
+# Nuevo modelo para actualización
+class ReservationExtraServiceUpdate(BaseModel):
+    extra_service_id: int  # Solo permitimos actualizar el servicio extra

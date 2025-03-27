@@ -5,13 +5,14 @@ from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase, RoomUpdate,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
-    Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate, ExtraService, ExtraServiceCreate, ExtraServiceUpdate
+    Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate, ExtraService,
+    ExtraServiceCreate, ExtraServiceUpdate, ReservationExtraService, ReservationExtraServiceCreate, ReservationExtraServiceUpdate
 )
 from app.services.hotel import (
     create_accommodation, get_accommodations, accommodation,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
-    create_reservation, get_reservations, create_image, get_images, reservation, extra_service
+    create_reservation, get_reservations, create_image, get_images, reservation, extra_service, reservation_extra_service
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
@@ -323,3 +324,41 @@ async def get_all_extra_services_route(
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
     return await extra_service.get_all_extra_services(db, current_user.username)
+
+
+@router.post("/reservation-extra-services/", response_model=ReservationExtraService, status_code=status.HTTP_201_CREATED)
+async def create_reservation_extra_service_route(
+        reservation_extra_data: ReservationExtraServiceCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await reservation_extra_service.create_reservation_extra_service(db, reservation_extra_data, current_user.username)
+
+
+@router.put("/reservation-extra-services/{reservation_id}", response_model=ReservationExtraService)
+async def update_reservation_extra_service_route(
+        reservation_id: int,
+        reservation_extra_data: ReservationExtraServiceUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await reservation_extra_service.update_reservation_extra_service(db, reservation_id, reservation_extra_data, current_user.username)
+
+@router.delete("/reservation-extra-services/{reservation_id}/{extra_service_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_reservation_extra_service_route(
+        reservation_id: int,
+        extra_service_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await reservation_extra_service.delete_reservation_extra_service(db, reservation_id, extra_service_id, current_user.username)
+    return None
+
+
+@router.get("/reservation-extra-services/{reservation_id}", response_model=List[ReservationExtraService])
+async def get_reservation_extra_services_route(
+        reservation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await reservation_extra_service.get_reservation_extra_services(db, reservation_id, current_user.username)
