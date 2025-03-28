@@ -7,14 +7,15 @@ from app.models.pydantic_models import (
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
     Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate, ExtraService,
     ExtraServiceCreate, ExtraServiceUpdate, ReservationExtraService, ReservationExtraServiceCreate,
-    ReservationExtraServiceUpdate, ReviewCreate, Review as ReviewPydantic, ReviewCreate, ReviewUpdate
+    ReservationExtraServiceUpdate, Review as ReviewPydantic, ReviewCreate, ReviewUpdate,
+    RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate
 )
 from app.services.hotel import (
     create_accommodation, get_accommodations, accommodation,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
     create_reservation, get_reservations, create_image, get_images, reservation, extra_service,
-    reservation_extra_service, review
+    reservation_extra_service, review, room_inventory
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
@@ -404,4 +405,44 @@ async def delete_review_route(
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
     await review.delete_review(db, review_id, current_user.username)
+    return None
+
+@router.post("/room-inventory/", response_model=RoomInventoryPydantic, status_code=status.HTTP_201_CREATED)
+async def create_room_inventory_route(
+        inventory_data: RoomInventoryCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await room_inventory.create_room_inventory(db, inventory_data, current_user.username)
+
+@router.get("/room-inventory/room/{room_id}", response_model=List[RoomInventoryPydantic])
+async def get_room_inventory_by_room_route(
+        room_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await room_inventory.get_room_inventory_by_room(db, room_id)
+
+@router.get("/room-inventory/{inventory_id}", response_model=RoomInventoryPydantic)
+async def get_room_inventory_route(
+        inventory_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await room_inventory.get_room_inventory(db, inventory_id)
+
+@router.put("/room-inventory/{inventory_id}", response_model=RoomInventoryPydantic)
+async def update_room_inventory_route(
+        inventory_id: int,
+        inventory_data: RoomInventoryUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await room_inventory.update_room_inventory(db, inventory_id, inventory_data, current_user.username)
+
+@router.delete("/room-inventory/{inventory_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_room_inventory_route(
+        inventory_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await room_inventory.delete_room_inventory(db, inventory_id, current_user.username)
     return None

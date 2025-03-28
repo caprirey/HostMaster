@@ -282,3 +282,51 @@ class Review(ReviewBase):
     user_username: str
     created_at: datetime
     model_config = {"from_attributes": True}
+
+
+class RoomInventoryBase(BaseModel):
+    room_id: int
+    product_name: str
+    quantity: int
+    min_quantity: int
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError('Quantity must be non-negative')
+        return v
+
+    @field_validator('min_quantity')
+    @classmethod
+    def min_quantity_must_be_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError('Min quantity must be non-negative')
+        return v
+
+class RoomInventoryCreate(RoomInventoryBase):
+    pass
+
+class RoomInventoryUpdate(BaseModel):
+    quantity: Optional[int] = None
+    min_quantity: Optional[int] = None
+    needs_restock: Optional[bool] = None
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_non_negative_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError('Quantity must be non-negative')
+        return v
+
+    @field_validator('min_quantity')
+    @classmethod
+    def min_quantity_must_be_non_negative_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v < 0:
+            raise ValueError('Min quantity must be non-negative')
+        return v
+
+class RoomInventory(RoomInventoryBase):
+    id: int
+    needs_restock: bool
+    model_config = {"from_attributes": True}
