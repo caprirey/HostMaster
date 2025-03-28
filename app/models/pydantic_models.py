@@ -108,15 +108,21 @@ class Room(RoomBase):
 
 class ReservationBase(BaseModel):
     room_id: int
+    accommodation_id: int  # Nuevo campo
     start_date: date
     end_date: date
-    guest_count: int  # Nuevo campo para el número de huéspedes
+    guest_count: int
+    status: str = "pending"  # Nuevo campo como String sin restricciones
+    observations: Optional[str] = None  # Nuevo campo opcional
 
 class ReservationUpdate(BaseModel):
     room_id: Optional[int] = None
+    accommodation_id: Optional[int] = None  # Nuevo campo opcional
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    guest_count: Optional[int] = None  # Opcional para actualizaciones
+    guest_count: Optional[int] = None
+    status: Optional[str] = None  # Nuevo campo opcional como String sin restricciones
+    observations: Optional[str] = None  # Nuevo campo opcional
 
 
 class Reservation(ReservationBase):

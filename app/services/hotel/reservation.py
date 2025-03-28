@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.pydantic_models import Reservation, ReservationBase, ReservationUpdate
-from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable
+from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable, Accommodation
 from sqlalchemy.orm import selectinload
 
 async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, username: str) -> Reservation:
@@ -22,6 +22,13 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+
+    # Validar que el accommodation_id coincida con el de la habitación
+    if room.accommodation_id != reservation_data.accommodation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="The accommodation_id does not match the room's accommodation"
+        )
 
     # Validar el número de huéspedes contra max_guests
     if reservation_data.guest_count > room.room_type.max_guests:
@@ -51,13 +58,23 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     reservation = ReservationTable(
         user_username=username,
         room_id=reservation_data.room_id,
+        accommodation_id=reservation_data.accommodation_id,
         start_date=reservation_data.start_date,
         end_date=reservation_data.end_date,
-        guest_count=reservation_data.guest_count
+        guest_count=reservation_data.guest_count,
+        status=reservation_data.status,
+        observations=reservation_data.observations
     )
     db.add(reservation)
     await db.commit()
-    await db.refresh(reservation)
+
+    # Refrescar la reserva y cargar la relación extra_services
+    result = await db.execute(
+        select(ReservationTable)
+        .where(ReservationTable.id == reservation.id)
+        .options(selectinload(ReservationTable.extra_services))
+    )
+    reservation = result.scalar_one()
     return Reservation.model_validate(reservation)
 
 async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]:
@@ -67,17 +84,21 @@ async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]
         raise HTTPException(status_code=404, detail="User not found")
 
     if user.role == "admin":
-        result = await db.execute(select(ReservationTable))
+        result = await db.execute(
+            select(ReservationTable)
+            .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
+        )
     elif user.role == "user":
         result = await db.execute(
-            select(ReservationTable).where(ReservationTable.user_username == username)
+            select(ReservationTable)
+            .where(ReservationTable.user_username == username)
+            .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
         )
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
     reservations = result.scalars().all()
     return [Reservation.model_validate(reservation) for reservation in reservations]
-
 
 async def update_reservation(
         db: AsyncSession,
@@ -95,7 +116,10 @@ async def update_reservation(
     result = await db.execute(
         select(ReservationTable)
         .where(ReservationTable.id == reservation_id)
-        .options(selectinload(ReservationTable.room).selectinload(RoomTable.room_type))
+        .options(
+            selectinload(ReservationTable.room).selectinload(RoomTable.room_type),
+            selectinload(ReservationTable.extra_services)  # Cargar relación extra_services
+        )
     )
     db_reservation = result.scalar_one_or_none()
     if not db_reservation:
@@ -107,6 +131,7 @@ async def update_reservation(
 
     # Determinar el room_id a validar (nuevo si se proporciona, actual si no)
     new_room_id = reservation_update.room_id if reservation_update.room_id is not None else db_reservation.room_id
+    new_accommodation_id = reservation_update.accommodation_id if reservation_update.accommodation_id is not None else db_reservation.accommodation_id
 
     # Consultar la habitación y su tipo para obtener max_guests
     result = await db.execute(
@@ -119,6 +144,13 @@ async def update_reservation(
         raise HTTPException(status_code=404, detail="Room not found")
     if not room.is_available:
         raise HTTPException(status_code=400, detail="Room is not available")
+
+    # Validar que el accommodation_id coincida con el de la habitación
+    if room.accommodation_id != new_accommodation_id:
+        raise HTTPException(
+            status_code=400,
+            detail="The accommodation_id does not match the room's accommodation"
+        )
 
     # Validar guest_count si se proporciona
     if reservation_update.guest_count is not None:
@@ -172,7 +204,9 @@ async def delete_reservation(db: AsyncSession, reservation_id: int, username: st
 
     # Buscar la reserva existente
     result = await db.execute(
-        select(ReservationTable).where(ReservationTable.id == reservation_id)
+        select(ReservationTable)
+        .where(ReservationTable.id == reservation_id)
+        .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
     )
     db_reservation = result.scalar_one_or_none()
     if not db_reservation:

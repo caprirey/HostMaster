@@ -81,12 +81,17 @@ class Reservation(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_username = Column(String, ForeignKey('users.username'), nullable=False)
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
+    accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=False)  # Nuevo campo
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
-    guest_count = Column(Integer, nullable=False) # Nuevo campo
+    guest_count = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="pending")  # Nuevo campo como String sin restricciones
+    observations = Column(String, nullable=True)  # Nuevo campo opcional
     user = relationship("UserTable", back_populates="reservations")
     room = relationship("Room", back_populates="reservations")
-    extra_services = relationship("ExtraService", secondary="reservation_extra_service", back_populates="reservations")  # Nueva relación
+    accommodation = relationship("Accommodation")  # Nueva relación
+    extra_services = relationship("ExtraService", secondary="reservation_extra_service", back_populates="reservations")
+
 
 class Image(Base):
     __tablename__ = 'images'
