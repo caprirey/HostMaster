@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 
-async def get_accommodations(db: AsyncSession, username: str) -> list[Accommodation]:
+async def get_accommodations(db: AsyncSession, username: str) -> List[Accommodation]:
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
@@ -44,13 +44,19 @@ async def get_accommodations(db: AsyncSession, username: str) -> list[Accommodat
 
     if user.role == "admin":
         result = await db.execute(
-            select(AccommodationTable).options(selectinload(AccommodationTable.images))
+            select(AccommodationTable).options(
+                selectinload(AccommodationTable.images),  # Cargar relación images
+                selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+            )
         )
     elif user.role == "user":
         result = await db.execute(
             select(AccommodationTable)
             .where(AccommodationTable.created_by == username)
-            .options(selectinload(AccommodationTable.images))
+            .options(
+                selectinload(AccommodationTable.images),  # Cargar relación images
+                selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+            )
         )
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
@@ -88,14 +94,18 @@ async def create_accommodation(
     db.add(db_accommodation)
     await db.commit()
 
-    # Cargar la relación images para evitar problemas con Pydantic
+    # Cargar todas las relaciones relevantes para evitar problemas con Pydantic
     result = await db.execute(
         select(AccommodationTable)
         .where(AccommodationTable.id == db_accommodation.id)
-        .options(selectinload(AccommodationTable.images))
+        .options(
+            selectinload(AccommodationTable.images),  # Cargar relación images
+            selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+        )
     )
     db_accommodation = result.scalar_one()
     return Accommodation.model_validate(db_accommodation)
+
 
 async def update_accommodation(
         db: AsyncSession,
@@ -109,11 +119,14 @@ async def update_accommodation(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar el alojamiento existente
+    # Buscar el alojamiento existente con relaciones iniciales
     result = await db.execute(
         select(AccommodationTable)
         .where(AccommodationTable.id == accommodation_id)
-        .options(selectinload(AccommodationTable.images))
+        .options(
+            selectinload(AccommodationTable.images),  # Cargar relación images
+            selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+        )
     )
     db_accommodation = result.scalar_one_or_none()
     if not db_accommodation:
@@ -138,7 +151,17 @@ async def update_accommodation(
         setattr(db_accommodation, key, value)
 
     await db.commit()
-    await db.refresh(db_accommodation)
+
+    # Refrescar y cargar todas las relaciones relevantes
+    result = await db.execute(
+        select(AccommodationTable)
+        .where(AccommodationTable.id == db_accommodation.id)
+        .options(
+            selectinload(AccommodationTable.images),  # Cargar relación images
+            selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+        )
+    )
+    db_accommodation = result.scalar_one()
     return Accommodation.model_validate(db_accommodation)
 
 
@@ -699,6 +722,12 @@ async def delete_room(db: AsyncSession, room_id: int, username: str) -> None:
     await db.delete(db_room)
     await db.commit()
 
+from fastapi import HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from app.models.sqlalchemy_models import UserTable, Accommodation as AccommodationTable
+
 async def delete_accommodation(db: AsyncSession, accommodation_id: int, username: str) -> None:
     # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
@@ -706,11 +735,15 @@ async def delete_accommodation(db: AsyncSession, accommodation_id: int, username
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar el alojamiento con sus habitaciones e imágenes
+    # Buscar el alojamiento con sus habitaciones, imágenes y revisiones
     result = await db.execute(
         select(AccommodationTable)
         .where(AccommodationTable.id == accommodation_id)
-        .options(selectinload(AccommodationTable.rooms), selectinload(AccommodationTable.images))
+        .options(
+            selectinload(AccommodationTable.rooms),   # Cargar relación rooms
+            selectinload(AccommodationTable.images),  # Cargar relación images
+            selectinload(AccommodationTable.reviews)  # Cargar relación reviews
+        )
     )
     db_accommodation = result.scalar_one_or_none()
     if not db_accommodation:
@@ -727,7 +760,14 @@ async def delete_accommodation(db: AsyncSession, accommodation_id: int, username
             detail="Cannot delete accommodation with associated rooms"
         )
 
-    # Eliminar imágenes asociadas al alojamiento
+    # Verificar si hay revisiones asociadas
+    if db_accommodation.reviews:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete accommodation with associated reviews"
+        )
+
+    # Eliminar imágenes asociadas al alojamiento (si es permitido eliminarlas)
     for image in db_accommodation.images:
         await db.delete(image)
 
