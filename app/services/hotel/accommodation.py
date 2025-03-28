@@ -142,12 +142,14 @@ async def update_accommodation(
     return Accommodation.model_validate(db_accommodation)
 
 
-async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> list[Room]:
+async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> List[Room]:
+    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Verificar que el alojamiento exista
     result = await db.execute(
         select(AccommodationTable)
         .where(AccommodationTable.id == accommodation_id)
@@ -156,6 +158,7 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> l
     if not accommodation:
         raise HTTPException(status_code=404, detail="Accommodation not found")
 
+    # Verificar permisos según el rol del usuario
     if user.role == "admin":
         pass
     elif user.role == "user":
@@ -164,12 +167,19 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> l
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
+    # Consultar habitaciones con todas las relaciones relevantes
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.accommodation_id == accommodation_id)
-        .options(selectinload(RoomTable.images))
+        .options(
+            selectinload(RoomTable.images),           # Cargar relación images
+            selectinload(RoomTable.inventory_items),  # Cargar relación inventory_items
+            selectinload(RoomTable.room_type)         # Cargar relación room_type
+        )
     )
     rooms = result.scalars().all()
+
+    # Convertir a modelos Pydantic
     return [Room.model_validate(room) for room in rooms]
 
 async def create_room_type(
@@ -272,14 +282,20 @@ async def create_room(
         type_id=room.type_id,
         number=room.number,
         is_available=room.isAvailable,
-        price = room.price
+        price=room.price
     )
     db.add(db_room)
     await db.commit()
 
-    # Cargar la relación images para evitar problemas con Pydantic
+    # Cargar todas las relaciones relevantes para evitar problemas con Pydantic
     result = await db.execute(
-        select(RoomTable).where(RoomTable.id == db_room.id).options(selectinload(RoomTable.images))
+        select(RoomTable)
+        .where(RoomTable.id == db_room.id)
+        .options(
+            selectinload(RoomTable.images),           # Cargar relación images
+            selectinload(RoomTable.inventory_items),  # Cargar relación inventory_items
+            selectinload(RoomTable.room_type)         # Cargar relación room_type
+        )
     )
     db_room = result.scalar_one()
     return Room.model_validate(db_room)
@@ -535,11 +551,15 @@ async def update_room(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar la habitación existente
+    # Buscar la habitación existente con relaciones iniciales
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.id == room_id)
-        .options(selectinload(RoomTable.images))
+        .options(
+            selectinload(RoomTable.images),           # Cargar relación images
+            selectinload(RoomTable.inventory_items),  # Cargar relación inventory_items
+            selectinload(RoomTable.room_type)         # Cargar relación room_type
+        )
     )
     db_room = result.scalar_one_or_none()
     if not db_room:
@@ -596,7 +616,18 @@ async def update_room(
         setattr(db_room, key, value)
 
     await db.commit()
-    await db.refresh(db_room)
+
+    # Refrescar y cargar todas las relaciones relevantes
+    result = await db.execute(
+        select(RoomTable)
+        .where(RoomTable.id == db_room.id)
+        .options(
+            selectinload(RoomTable.images),           # Cargar relación images
+            selectinload(RoomTable.inventory_items),  # Cargar relación inventory_items
+            selectinload(RoomTable.room_type)         # Cargar relación room_type
+        )
+    )
+    db_room = result.scalar_one()
     return Room.model_validate(db_room)
 
 async def get_all_rooms(
@@ -610,7 +641,10 @@ async def get_all_rooms(
         raise HTTPException(status_code=404, detail="User not found")
 
     # Construir la consulta de habitaciones
-    query = select(RoomTable).options(selectinload(RoomTable.images))
+    query = select(RoomTable).options(
+        selectinload(RoomTable.images),           # Cargar relación images
+        selectinload(RoomTable.inventory_items)   # Cargar relación inventory_items
+    )
 
     # Filtrar según el rol del usuario
     if user.role != "admin":
