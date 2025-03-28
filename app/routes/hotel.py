@@ -6,13 +6,15 @@ from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase, RoomUpdate,
     City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
     Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate, ExtraService,
-    ExtraServiceCreate, ExtraServiceUpdate, ReservationExtraService, ReservationExtraServiceCreate, ReservationExtraServiceUpdate
+    ExtraServiceCreate, ExtraServiceUpdate, ReservationExtraService, ReservationExtraServiceCreate,
+    ReservationExtraServiceUpdate, ReviewCreate, Review as ReviewPydantic, ReviewCreate, ReviewUpdate
 )
 from app.services.hotel import (
     create_accommodation, get_accommodations, accommodation,
     create_country, create_state, create_city, create_room_type,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
-    create_reservation, get_reservations, create_image, get_images, reservation, extra_service, reservation_extra_service
+    create_reservation, get_reservations, create_image, get_images, reservation, extra_service,
+    reservation_extra_service, review
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
@@ -362,3 +364,44 @@ async def get_reservation_extra_services_route(
         current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
     return await reservation_extra_service.get_reservation_extra_services(db, reservation_id, current_user.username)
+
+
+@router.post("/reviews/", response_model=ReviewPydantic, status_code=status.HTTP_201_CREATED)
+async def create_review_route(
+        review_data: ReviewCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await review.create_review(db, review_data, current_user.username)
+
+@router.get("/reviews/accommodation/{accommodation_id}", response_model=List[ReviewPydantic])
+async def get_reviews_by_accommodation_route(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await review.get_reviews_by_accommodation(db, accommodation_id)
+
+@router.get("/reviews/{review_id}", response_model=ReviewPydantic)
+async def get_review_route(
+        review_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+):
+    return await review.get_review(db, review_id)
+
+@router.put("/reviews/{review_id}", response_model=ReviewPydantic)
+async def update_review_route(
+        review_id: int,
+        review_data: ReviewUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await review.update_review(db, review_id, review_data, current_user.username)
+
+@router.delete("/reviews/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_review_route(
+        review_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await review.delete_review(db, review_id, current_user.username)
+    return None

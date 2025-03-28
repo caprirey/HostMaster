@@ -249,3 +249,36 @@ class ReservationExtraService(BaseModel):
 # Nuevo modelo para actualización
 class ReservationExtraServiceUpdate(BaseModel):
     extra_service_id: int  # Solo permitimos actualizar el servicio extra
+
+
+class ReviewBase(BaseModel):
+    accommodation_id: int
+    rating: int
+    comment: Optional[str] = None
+
+    @field_validator('rating')
+    @classmethod
+    def rating_must_be_valid(cls, v: int) -> int:
+        if v < 1 or v > 5:
+            raise ValueError('Rating must be between 1 and 5')
+        return v
+
+class ReviewCreate(ReviewBase):
+    pass
+
+class ReviewUpdate(BaseModel):
+    rating: Optional[int] = None
+    comment: Optional[str] = None
+
+    @field_validator('rating')
+    @classmethod
+    def rating_must_be_valid_if_provided(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and (v < 1 or v > 5):
+            raise ValueError('Rating must be between 1 and 5')
+        return v
+
+class Review(ReviewBase):
+    id: int
+    user_username: str
+    created_at: datetime
+    model_config = {"from_attributes": True}
