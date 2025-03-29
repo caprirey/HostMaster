@@ -4,18 +4,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, Room, RoomBase, RoomUpdate,
-    City, CityBase, Country, CountryBase, State, StateBase, RoomType, RoomTypeBase, User,
+    City, CityBase, Country, CountryBase, State, StateBase, User,
     Reservation, ReservationBase, ReservationUpdate, Image, ImageBase, AccommodationUpdate, ExtraService,
     ExtraServiceCreate, ExtraServiceUpdate, ReservationExtraService, ReservationExtraServiceCreate,
     ReservationExtraServiceUpdate, Review as ReviewPydantic, ReviewCreate, ReviewUpdate,
-    RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate
+    RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate, RoomType, RoomTypeBase
 )
 from app.services.hotel import (
     create_accommodation, get_accommodations, accommodation,
-    create_country, create_state, create_city, create_room_type,
+    create_country, create_state, create_city,
     get_countries, get_country, get_states, get_state, get_cities, get_city,
     create_reservation, get_reservations, create_image, get_images, reservation, extra_service,
-    reservation_extra_service, review, room_inventory
+    reservation_extra_service, review, room_inventory, room_type
 )
 from datetime import date
 from app.models.sqlalchemy_models import UserTable
@@ -120,29 +120,47 @@ async def delete_accommodation_route(
     await accommodation.delete_accommodation(db, accommodation_id, current_user.username)
     return None
 
-@router.post("/room_types/", response_model=RoomType)
+
+@router.post("/room-types/", response_model=RoomType, status_code=status.HTTP_201_CREATED)
 async def create_room_type_route(
         room_type_data: RoomTypeBase,
         db: Annotated[AsyncSession, Depends(get_db)],
-        current_user: Annotated[User, Depends(get_current_active_user)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await create_room_type(db, room_type_data, current_user.username)
+    return await room_type.create_room_type(db, room_type_data, current_user)
 
+@router.put("/room-types/{room_type_id}", response_model=RoomType)
+async def update_room_type_route(
+        room_type_id: int,
+        room_type_update: RoomTypeBase,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    return await room_type.update_room_type(db, room_type_id, room_type_update, current_user)
 
-@router.get("/room_types/", response_model=List[RoomType])
+@router.delete("/room-types/{room_type_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_room_type_route(
+        room_type_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    await room_type.delete_room_type(db, room_type_id, current_user)
+    return None
+
+@router.get("/room-types/", response_model=List[RoomType])
 async def get_room_types_route(
-        db: AsyncSession = Depends(get_db),
-        current_user: UserTable = Depends(get_current_active_user)
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await accommodation.get_room_types(db, current_user.username)
+    return await room_type.get_room_types(db, current_user)
 
-
-@router.get("/room_types/{id}", response_model=RoomType)
+@router.get("/room-types/{room_type_id}", response_model=RoomType)
 async def get_room_type_route(
         room_type_id: int,
-        db: Annotated[AsyncSession, Depends(get_db)]
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
 ):
-    return await accommodation.get_room_type(db, room_type_id)
+    return await room_type.get_room_type(db, room_type_id, current_user)
 
 
 @router.post("/rooms/", response_model=Room)

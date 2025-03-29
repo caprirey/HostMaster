@@ -56,6 +56,7 @@ class RoomType(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     max_guests = Column(Integer, nullable=False)
+    description = Column(String, nullable=True)  # Nuevo campo description
     rooms = relationship("Room", back_populates="room_type")
 
 class Room(Base):

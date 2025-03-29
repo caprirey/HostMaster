@@ -205,54 +205,6 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> L
     # Convertir a modelos Pydantic
     return [Room.model_validate(room) for room in rooms]
 
-async def create_room_type(
-        db: AsyncSession,
-        room_type: RoomTypeBase,
-        username: str
-) -> RoomType:
-    # Verificar que el usuario exista
-    result = await db.execute(select(UserTable).where(UserTable.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Verificar permisos: solo admin puede crear tipos de habitación
-    if user.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can create room types")
-
-    # Crear el tipo de habitación
-    db_room_type = RoomTypeTable(**room_type.model_dump())
-    db.add(db_room_type)
-    await db.commit()
-    await db.refresh(db_room_type)
-    return RoomType.model_validate(db_room_type)
-
-async def get_room_types(
-        db: AsyncSession,
-        username: str
-) -> List[RoomType]:
-    # Verificar que el usuario exista (autenticación básica)
-    result = await db.execute(select(UserTable).where(UserTable.username == username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Construir la consulta base
-    query = select(RoomTypeTable)
-
-    # Filtrar por accommodation_id si se proporciona
-    # if accommodation_id:
-    #    query = query.where(RoomTypeTable.accommodation_id == accommodation_id)
-
-    # Ejecutar la consulta
-    result = await db.execute(query)
-    room_types = result.scalars().all()
-
-    # if not room_types and accommodation_id:
-    #    raise HTTPException(status_code=404, detail="No room types found for this accommodation")
-
-    return [RoomType.model_validate(room_type) for room_type in room_types]
-
 
 async def create_room(
         db: AsyncSession,

@@ -108,9 +108,9 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     # Tipos de habitación
-    sencilla = RoomType(name="Habitación Sencilla", max_guests=1)
-    doble = RoomType(name="Habitación Doble", max_guests=2)
-    familiar = RoomType(name="Habitación Familiar", max_guests=4)
+    sencilla = RoomType(name="Habitación Sencilla", max_guests=1, description="habitacion con cama sencilla")
+    doble = RoomType(name="Habitación Doble", max_guests=2,description="habitacion con cama doble")
+    familiar = RoomType(name="Habitación Familiar", max_guests=4,description="habitacion con dos camas dobles")
     db.add_all([sencilla, doble, familiar])
     await db.flush()
 

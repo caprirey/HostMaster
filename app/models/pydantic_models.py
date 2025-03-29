@@ -81,10 +81,16 @@ class Accommodation(AccommodationBase):
 class RoomTypeBase(BaseModel):
     name: str
     max_guests: int
+    description: Optional[str] = None  # Nuevo campo opcional
 
 class RoomType(RoomTypeBase):
     id: int
     model_config = {"from_attributes": True}
+
+class RoomTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    max_guests: Optional[int] = None
+    description: Optional[str] = None  # Nuevo campo opcional para actualizaciones
 
 class RoomBase(BaseModel):
     accommodation_id: int
