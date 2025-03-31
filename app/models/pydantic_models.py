@@ -127,6 +127,7 @@ class ReservationBase(BaseModel):
     guest_count: int
     status: str = "pending"  # Nuevo campo como String sin restricciones
     observations: Optional[str] = None  # Nuevo campo opcional
+    user_username: Optional[str] = None  # Nuevo campo opcional para especificar el usuario
 
 class ReservationUpdate(BaseModel):
     room_id: Optional[int] = None
@@ -136,6 +137,7 @@ class ReservationUpdate(BaseModel):
     guest_count: Optional[int] = None
     status: Optional[str] = None  # Nuevo campo opcional como String sin restricciones
     observations: Optional[str] = None  # Nuevo campo opcional
+    user_username: Optional[str] = None  # Nuevo campo para permitir cambiar el usuario asociado
 
 
 class Reservation(ReservationBase):

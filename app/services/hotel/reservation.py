@@ -5,7 +5,19 @@ from app.models.pydantic_models import Reservation, ReservationBase, Reservation
 from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable, Accommodation
 from sqlalchemy.orm import selectinload
 
-async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, username: str) -> Reservation:
+async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str) -> Reservation:
+    # Determinar el username a usar: el especificado o el del usuario autenticado
+    target_username = reservation_data.user_username if reservation_data.user_username is not None else current_username
+
+    # Validar que el usuario especificado exista
+    result = await db.execute(select(UserTable).where(UserTable.username == target_username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail=f"User {target_username} not found"
+        )
+
     # Validar que las fechas sean coherentes
     if reservation_data.start_date >= reservation_data.end_date:
         raise HTTPException(
@@ -54,9 +66,9 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
                 detail=f"Room {reservation_data.room_id} is already booked from {existing.start_date} to {existing.end_date}"
             )
 
-    # Si no hay superposición y el número de huéspedes es válido, crear la nueva reservación
+    # Crear la nueva reservación con el username determinado
     reservation = ReservationTable(
-        user_username=username,
+        user_username=target_username,
         room_id=reservation_data.room_id,
         accommodation_id=reservation_data.accommodation_id,
         start_date=reservation_data.start_date,
@@ -104,9 +116,9 @@ async def update_reservation(
         db: AsyncSession,
         reservation_id: int,
         reservation_update: ReservationUpdate,
-        username: str
+        username: str  # Username del usuario autenticado
 ) -> Reservation:
-    # Verificar que el usuario exista
+    # Verificar que el usuario autenticado exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
@@ -118,7 +130,7 @@ async def update_reservation(
         .where(ReservationTable.id == reservation_id)
         .options(
             selectinload(ReservationTable.room).selectinload(RoomTable.room_type),
-            selectinload(ReservationTable.extra_services)  # Cargar relación extra_services
+            selectinload(ReservationTable.extra_services)
         )
     )
     db_reservation = result.scalar_one_or_none()
@@ -129,7 +141,19 @@ async def update_reservation(
     if user.role != "admin" and db_reservation.user_username != username:
         raise HTTPException(status_code=403, detail="Not authorized to update this reservation")
 
-    # Determinar el room_id a validar (nuevo si se proporciona, actual si no)
+    # Validar el nuevo user_username si se proporciona
+    if reservation_update.user_username is not None:
+        result = await db.execute(
+            select(UserTable).where(UserTable.username == reservation_update.user_username)
+        )
+        target_user = result.scalar_one_or_none()
+        if not target_user:
+            raise HTTPException(
+                status_code=404,
+                detail=f"User {reservation_update.user_username} not found"
+            )
+
+    # Determinar el room_id y accommodation_id a validar
     new_room_id = reservation_update.room_id if reservation_update.room_id is not None else db_reservation.room_id
     new_accommodation_id = reservation_update.accommodation_id if reservation_update.accommodation_id is not None else db_reservation.accommodation_id
 
@@ -176,7 +200,7 @@ async def update_reservation(
         result = await db.execute(
             select(ReservationTable)
             .where(ReservationTable.room_id == new_room_id)
-            .where(ReservationTable.id != reservation_id)  # Excluir la reserva actual
+            .where(ReservationTable.id != reservation_id)
         )
         existing_reservations = result.scalars().all()
         for existing in existing_reservations:
