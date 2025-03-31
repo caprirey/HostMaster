@@ -20,6 +20,7 @@ class UserBase(BaseModel):
 
 class User(UserBase):
     reviews: List["Review"] = []  # Nueva relación
+    accommodation_ids: List[int] = []  # Añadir IDs de alojamientos asociados
     model_config = {"from_attributes": True}
 
 class UserInDB(User):
@@ -30,10 +31,16 @@ class UserCreate(BaseModel):
     email: str | None = None
     full_name: str | None = None
     password: str
+    accommodation_ids: Optional[List[int]] = None  # Añadir campo para IDs de alojamientos
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
+    accommodation_ids: Optional[List[int]] = None
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 # Hotel Models
 class CountryBase(BaseModel):

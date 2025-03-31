@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
-from app.models.pydantic_models import Token, User, UserCreate, UserUpdate
-from app.services.auth import register_user_service, login_user_service, update_user_service
+from app.models.pydantic_models import Token, User, UserCreate, UserUpdate, ChangePasswordRequest
+from app.services.auth.auth import register_user_service, login_user_service, update_user_service, change_password_service
+
 
 router = APIRouter()
 
@@ -35,3 +36,11 @@ async def update_user(
         db: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await update_user_service(db, current_user.username, user_data)
+
+@router.put("/users/me/password", response_model=User)
+async def change_password(
+        password_data: ChangePasswordRequest,
+        current_user: User = Depends(get_current_active_user),
+        db: AsyncSession = Depends(get_db)
+):
+    return await change_password_service(db, current_user.username, password_data)

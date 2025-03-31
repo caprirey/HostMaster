@@ -15,6 +15,7 @@ class UserTable(Base):
     role = Column(String, default="user")
     reservations = relationship("Reservation", back_populates="user")
     reviews = relationship("Review", back_populates="user")  # Nueva relación
+    accommodations = relationship("Accommodation", back_populates="creator", foreign_keys="Accommodation.created_by")
 
 class Country(Base):
     __tablename__ = 'countries'
@@ -50,6 +51,7 @@ class Accommodation(Base):
     city = relationship("City", back_populates="accommodations")
     images = relationship("Image", back_populates="accommodation")  # Relación con imágenes
     reviews = relationship("Review", back_populates="accommodation")  # Nueva relación
+    creator = relationship("UserTable", back_populates="accommodations")
 
 class RoomType(Base):
     __tablename__ = 'room_types'
