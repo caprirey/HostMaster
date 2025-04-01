@@ -32,11 +32,14 @@ class UserCreate(BaseModel):
     full_name: str | None = None
     password: str
     accommodation_ids: Optional[List[int]] = None  # Añadir campo para IDs de alojamientos
+    role: Optional[str] = "user"  # Campo opcional con valor por defecto "user"
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = None
     accommodation_ids: Optional[List[int]] = None
+    role: Optional[str] = None  # Nuevo campo para permitir cambiar el rol
+    password: Optional[str] = None  # Nuevo campo para actualizar la contraseña
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import Token, User, UserCreate, UserUpdate, ChangePasswordRequest
-from app.services.auth.auth import register_user_service, login_user_service, update_user_service, change_password_service
+from app.services.auth.user import register_user_service, login_user_service, update_user_service, change_password_service
 
 
 router = APIRouter()

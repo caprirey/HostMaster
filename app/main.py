@@ -6,6 +6,7 @@ import os
 from app.database.db import engine, init_db, get_db
 from app.routes.auth import router as auth_router
 from app.routes.hotel import router as hotel_router
+from app.routes.admin import router as admin_router
 from app.seeds.seeder import seed_database
 from app.config.settings import STATIC_DIR, IMAGES_DIR  # Importamos las configuraciones
 
@@ -47,6 +48,7 @@ app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
 
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 app.include_router(hotel_router, prefix="/hotel", tags=["hotel"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 if __name__ == "__main__":
     import uvicorn
