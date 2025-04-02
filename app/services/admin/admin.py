@@ -43,7 +43,7 @@ async def create_user_service(db: AsyncSession, user_data: UserCreate) -> User:
         accommodations_list = accommodations.scalars().all()
         if len(accommodations_list) != len(user_data.accommodation_ids):
             raise HTTPException(status_code=400, detail="One or more accommodation IDs do not exist")
-        new_user.accommodations = accommodations_list
+        new_user.accommodations = accommodations_list  # Asignación directa a la relación muchos-a-muchos
 
     db.add(new_user)
     await db.commit()
@@ -137,11 +137,11 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
         accommodations_list = accommodations.scalars().all()
         if len(accommodations_list) != len(user_data.accommodation_ids):
             raise HTTPException(status_code=400, detail="One or more accommodation IDs do not exist")
-        user.accommodations = accommodations_list
+        user.accommodations = accommodations_list  # Asignación directa a la relación muchos-a-muchos
     if user_data.role is not None:
         user.role = user_data.role
     if user_data.password is not None:
-        user.hashed_password = get_password_hash(user_data.password)  # Hashear y actualizar la contraseña
+        user.hashed_password = get_password_hash(user_data.password)
 
     await db.commit()
     await db.refresh(user)
@@ -169,8 +169,7 @@ async def delete_user_service(db: AsyncSession, username: str) -> None:
     await db.delete(user)
     await db.commit()
 
-
-
+# Leer usuarios por rol
 async def get_users_by_role_service(db: AsyncSession, role: str) -> List[User]:
     result = await db.execute(
         select(UserTable)

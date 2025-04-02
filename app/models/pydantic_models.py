@@ -75,18 +75,19 @@ class AccommodationBase(BaseModel):
     address: str
     information: str
 
+class Accommodation(AccommodationBase):
+    id: int
+    user_usernames: List[str] = []  # Lista de usernames de usuarios asociados
+    images: List["Image"] = []
+    reviews: List["Review"] = []  # Nueva relación
+    model_config = {"from_attributes": True}
+
 class AccommodationUpdate(BaseModel):
     name: Optional[str] = None
     city_id: Optional[int] = None
     address: Optional[str] = None
     information: Optional[str] = None
-
-class Accommodation(AccommodationBase):
-    id: int
-    created_by: str
-    images: List["Image"] = []
-    reviews: List["Review"] = []  # Nueva relación
-    model_config = {"from_attributes": True}
+    user_usernames: Optional[List[str]] = None  # Permitir actualizar usuarios asociados
 
 class RoomTypeBase(BaseModel):
     name: str

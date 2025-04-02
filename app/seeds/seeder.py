@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import insert
 from app.models.sqlalchemy_models import (
     Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation,
     Image, Review, ExtraService, reservation_extra_service, RoomInventory
@@ -32,7 +33,15 @@ async def seed_database(db: AsyncSession):
         disabled=False,
         role="user"
     )
-    db.add_all([admin_user, user1])
+    employee = UserTable(
+        username="camilo",
+        email="camilo@hotelescolombia.com",
+        full_name="camilo prieto",
+        hashed_password=get_password_hash("camilo"),
+        disabled=False,
+        role="employee"
+    )
+    db.add_all([admin_user, user1, employee])
     await db.flush()
 
     # País
@@ -40,7 +49,7 @@ async def seed_database(db: AsyncSession):
     db.add(colombia)
     await db.flush()
 
-    # Cargar departamentos y municipios desde CSV al lado de seeder.py
+    # Cargar departamentos y municipios desde CSV
     csv_path = Path(__file__).parent / "colombia_departamentos_municipios.csv"
     if not csv_path.exists():
         print(f"CSV file not found at {csv_path}, skipping departments and cities...")
@@ -51,7 +60,6 @@ async def seed_database(db: AsyncSession):
 
     with open(csv_path, newline='', encoding='utf-8') as csvfile:
         reader = csv.DictReader(csvfile)
-        # Verificar columnas esperadas
         expected_columns = {"REGION", "CÓDIGO DANE DEL DEPARTAMENTO", "DEPARTAMENTO", "CÓDIGO DANE DEL MUNICIPIO", "MUNICIPIO"}
         if not expected_columns.issubset(reader.fieldnames):
             print("CSV does not have the expected columns, skipping...")
@@ -62,28 +70,23 @@ async def seed_database(db: AsyncSession):
             dept_name = row["DEPARTAMENTO"]
             city_name = row["MUNICIPIO"]
 
-            # Agregar departamento si no existe
             if dept_code not in departments:
                 dept = State(name=dept_name, country_id=colombia.id)
                 departments[dept_code] = dept
                 db.add(dept)
 
-        # Flush departamentos para obtener sus IDs
         await db.flush()
 
-        # Mapear códigos DANE a IDs generados
         dept_id_map = {code: dept.id for code, dept in departments.items()}
 
-        # Rebobinar el archivo para leer municipios
         csvfile.seek(0)
-        next(reader)  # Saltar encabezado
+        next(reader)
         for row in reader:
             dept_code = row["CÓDIGO DANE DEL DEPARTAMENTO"]
             city_name = row["MUNICIPIO"]
             city = City(name=city_name, state_id=dept_id_map[dept_code])
             cities.append(city)
 
-    # Insertar ciudades en lote
     db.add_all(cities)
     await db.flush()
 
@@ -93,24 +96,33 @@ async def seed_database(db: AsyncSession):
     hotel_poblado = Accommodation(
         name="Hotel El Poblado Plaza",
         city_id=medellin_id,
-        created_by="admin",
         address="Calle 10 # 43-15",
         information="Hotel de lujo en el corazón de El Poblado"
     )
     hotel_tequendama = Accommodation(
         name="Hotel Tequendama",
         city_id=bogota_id,
-        created_by="maria",
         address="Carrera 10 # 26-21",
         information="Hotel histórico en el centro de Bogotá"
     )
     db.add_all([hotel_poblado, hotel_tequendama])
     await db.flush()
 
+    # Asociar usuarios a alojamientos mediante la tabla intermedia
+    await db.execute(
+        insert(Accommodation.__table__.metadata.tables['user_accommodation']),
+        [
+            {"user_username": "admin", "accommodation_id": hotel_poblado.id},
+            {"user_username": "maria", "accommodation_id": hotel_tequendama.id},
+            {"user_username": "camilo", "accommodation_id": hotel_poblado.id}
+        ]
+    )
+    await db.flush()
+
     # Tipos de habitación
-    sencilla = RoomType(name="Habitación Sencilla", max_guests=1, description="habitacion con cama sencilla")
-    doble = RoomType(name="Habitación Doble", max_guests=2,description="habitacion con cama doble")
-    familiar = RoomType(name="Habitación Familiar", max_guests=4,description="habitacion con dos camas dobles")
+    sencilla = RoomType(name="Habitación Sencilla", max_guests=1, description="habitación con cama sencilla")
+    doble = RoomType(name="Habitación Doble", max_guests=2, description="habitación con cama doble")
+    familiar = RoomType(name="Habitación Familiar", max_guests=4, description="habitación con dos camas dobles")
     db.add_all([sencilla, doble, familiar])
     await db.flush()
 
@@ -124,22 +136,22 @@ async def seed_database(db: AsyncSession):
     reservation_1 = Reservation(
         user_username="admin",
         room_id=room_101.id,
-        accommodation_id=hotel_poblado.id,  # Nuevo campo
+        accommodation_id=hotel_poblado.id,
         start_date=date(2025, 4, 10),
         end_date=date(2025, 4, 15),
         guest_count=1,
-        status="confirmed",  # Nuevo campo
-        observations="Reserva confirmada para evento corporativo"  # Nuevo campo
+        status="confirmed",
+        observations="Reserva confirmada para evento corporativo"
     )
     reservation_2 = Reservation(
         user_username="maria",
         room_id=room_201.id,
-        accommodation_id=hotel_tequendama.id,  # Nuevo campo
+        accommodation_id=hotel_tequendama.id,
         start_date=date(2025, 5, 1),
         end_date=date(2025, 5, 5),
         guest_count=1,
-        status="pending",  # Nuevo campo
-        observations="Esperando pago"  # Nuevo campo
+        status="pending",
+        observations="Esperando pago"
     )
     db.add_all([reservation_1, reservation_2])
     await db.flush()

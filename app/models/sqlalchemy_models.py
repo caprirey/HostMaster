@@ -14,8 +14,20 @@ class UserTable(Base):
     disabled = Column(Boolean, default=False)
     role = Column(String, default="user")
     reservations = relationship("Reservation", back_populates="user")
-    reviews = relationship("Review", back_populates="user")  # Nueva relación
-    accommodations = relationship("Accommodation", back_populates="creator", foreign_keys="Accommodation.created_by")
+    reviews = relationship("Review", back_populates="user")
+    accommodations = relationship(
+        "Accommodation",
+        secondary="user_accommodation",  # Usar la tabla intermedia
+        back_populates="users"
+    )
+
+# Tabla intermedia UserAccommodation
+user_accommodation = Table(
+    'user_accommodation',
+    Base.metadata,
+    Column('user_username', String, ForeignKey('users.username'), primary_key=True),
+    Column('accommodation_id', Integer, ForeignKey('accommodations.id'), primary_key=True)
+)
 
 class Country(Base):
     __tablename__ = 'countries'
@@ -44,14 +56,17 @@ class Accommodation(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     city_id = Column(Integer, ForeignKey('cities.id'))
-    created_by = Column(String, ForeignKey('users.username'), nullable=False)
-    address = Column(String, nullable=False)  # Nuevo campo
-    information = Column(String, nullable=False)  # Nuevo campo
+    address = Column(String, nullable=False)
+    information = Column(String, nullable=False)
     rooms = relationship("Room", back_populates="accommodation")
     city = relationship("City", back_populates="accommodations")
-    images = relationship("Image", back_populates="accommodation")  # Relación con imágenes
-    reviews = relationship("Review", back_populates="accommodation")  # Nueva relación
-    creator = relationship("UserTable", back_populates="accommodations")
+    images = relationship("Image", back_populates="accommodation")
+    reviews = relationship("Review", back_populates="accommodation")
+    users = relationship(
+        "UserTable",
+        secondary="user_accommodation",  # Usar la tabla intermedia
+        back_populates="accommodations"
+    )
 
 class RoomType(Base):
     __tablename__ = 'room_types'
