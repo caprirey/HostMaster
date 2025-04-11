@@ -110,7 +110,7 @@ async def create_room(db: AsyncSession, room: RoomBase, username: str) -> Room:
         accommodation_id=room.accommodation_id,
         type_id=room.type_id,
         number=room.number,
-        is_available=room.isAvailable,
+        isAvailable=room.isAvailable,
         price=room.price
     )
     db.add(db_room)

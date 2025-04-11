@@ -166,7 +166,7 @@ async def update_reservation(
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if not room.is_available:
+    if not room.isAvailable:
         raise HTTPException(status_code=400, detail="Room is not available")
 
     # Validar que el accommodation_id coincida con el de la habitación

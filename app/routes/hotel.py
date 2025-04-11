@@ -117,7 +117,7 @@ async def get_accommodations_route(
     """Retrieve accommodations based on user role (admin: all, employee: related, user: all without usernames)."""
     return await get_accommodations(db, current_user.username)
 
-@router.patch("/accommodations/{id}", response_model=Accommodation, tags=["Accommodations"], summary="Update an accommodation")
+@router.patch("/accommodations/{accommodation_id}", response_model=Accommodation, tags=["Accommodations"], summary="Update an accommodation")
 async def update_accommodation_route(
         accommodation_id: int,
         accommodation_data: AccommodationUpdate,
@@ -211,7 +211,7 @@ async def get_rooms_by_accommodation_route(
     """Retrieve all rooms for a specific accommodation (admin/user: all, employee: related)."""
     return await get_rooms_by_accommodation(db, accommodation_id, current_user.username)
 
-@router.patch("/rooms/{id}", response_model=Room, tags=["Rooms"], summary="Update a room")
+@router.patch("/rooms/{room_id}", response_model=Room, tags=["Rooms"], summary="Update a room")
 async def update_room_route(
         room_id: int,
         room_data: RoomUpdate,

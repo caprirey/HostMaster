@@ -83,7 +83,7 @@ class Room(Base):
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
     price = Column(Float, nullable=False)
-    is_available = Column(Boolean, default=True, nullable=False)  # Nuevo campo
+    isAvailable = Column(Boolean, default=True, nullable=False)  # Nuevo campo
     accommodation = relationship("Accommodation", back_populates="rooms")
     room_type = relationship("RoomType", back_populates="rooms")
     reservations = relationship("Reservation", back_populates="room")
