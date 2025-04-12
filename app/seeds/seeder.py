@@ -5,7 +5,7 @@ from sqlalchemy.future import select
 from sqlalchemy import insert
 from app.models.sqlalchemy_models import (
     Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation,
-    Image, Review, ExtraService, reservation_extra_service, RoomInventory
+    Image, Review, ExtraService, reservation_extra_service, RoomInventory, Product, room_product
 )
 from app.utils.auth import get_password_hash
 from datetime import date
@@ -36,7 +36,7 @@ async def seed_database(db: AsyncSession):
     employee = UserTable(
         username="camilo",
         email="camilo@hotelescolombia.com",
-        full_name="camilo prieto",
+        full_name="Camilo Prieto",
         hashed_password=get_password_hash("camilo"),
         disabled=False,
         role="employee"
@@ -120,9 +120,9 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     # Tipos de habitación
-    sencilla = RoomType(name="Habitación Sencilla", max_guests=1, description="habitación con cama sencilla")
-    doble = RoomType(name="Habitación Doble", max_guests=2, description="habitación con cama doble")
-    familiar = RoomType(name="Habitación Familiar", max_guests=4, description="habitación con dos camas dobles")
+    sencilla = RoomType(name="Habitación Sencilla", max_guests=1, description="Habitación con cama sencilla")
+    doble = RoomType(name="Habitación Doble", max_guests=2, description="Habitación con cama doble")
+    familiar = RoomType(name="Habitación Familiar", max_guests=4, description="Habitación con dos camas dobles")
     db.add_all([sencilla, doble, familiar])
     await db.flush()
 
@@ -132,7 +132,7 @@ async def seed_database(db: AsyncSession):
     db.add_all([room_101, room_201])
     await db.flush()
 
-    # Reservas con nuevos campos
+    # Reservas
     reservation_1 = Reservation(
         user_username="admin",
         room_id=room_101.id,
@@ -162,7 +162,7 @@ async def seed_database(db: AsyncSession):
     db.add_all([image_1, image_2])
     await db.flush()
 
-    # Reseñas (Reviews)
+    # Reseñas
     review_1 = Review(
         accommodation_id=hotel_poblado.id,
         user_username="admin",
@@ -178,13 +178,13 @@ async def seed_database(db: AsyncSession):
     db.add_all([review_1, review_2])
     await db.flush()
 
-    # Servicios Extra (ExtraService)
+    # Servicios Extra
     breakfast = ExtraService(name="Desayuno", description="Desayuno continental", price=15000)
     parking = ExtraService(name="Parqueadero", description="Estacionamiento privado", price=20000)
     db.add_all([breakfast, parking])
     await db.flush()
 
-    # Relación Reservation-ExtraService (reservation_extra_service)
+    # Relación Reservation-ExtraService
     reservation_extra_1 = reservation_extra_service.insert().values(
         reservation_id=reservation_1.id,
         extra_service_id=breakfast.id
@@ -197,7 +197,7 @@ async def seed_database(db: AsyncSession):
     await db.execute(reservation_extra_2)
     await db.flush()
 
-    # Inventario de Habitaciones (RoomInventory)
+    # Inventario de Habitaciones
     inventory_1 = RoomInventory(
         room_id=room_101.id,
         product_name="Toallas",
@@ -215,5 +215,55 @@ async def seed_database(db: AsyncSession):
     db.add_all([inventory_1, inventory_2])
     await db.flush()
 
+    # Productos
+    towels = Product(
+        name="Toallas",
+        description="Toallas blancas de algodón",
+        price=5.0
+    )
+    sheets = Product(
+        name="Sábanas",
+        description="Sábanas de algodón 200 hilos",
+        price=10.0
+    )
+    pillows = Product(
+        name="Almohadas",
+        description="Almohadas de plumas",
+        price=15.0
+    )
+    db.add_all([towels, sheets, pillows])
+    await db.flush()
+
+    # Relación Room-Product
+    room_product_1 = room_product.insert().values(
+        room_id=room_101.id,
+        product_id=towels.id,
+        quantity=5,
+        needs_restock=False
+    )
+    room_product_2 = room_product.insert().values(
+        room_id=room_101.id,
+        product_id=sheets.id,
+        quantity=2,
+        needs_restock=True
+    )
+    room_product_3 = room_product.insert().values(
+        room_id=room_201.id,
+        product_id=sheets.id,
+        quantity=3,
+        needs_restock=False
+    )
+    room_product_4 = room_product.insert().values(
+        room_id=room_201.id,
+        product_id=pillows.id,
+        quantity=4,
+        needs_restock=False
+    )
+    await db.execute(room_product_1)
+    await db.execute(room_product_2)
+    await db.execute(room_product_3)
+    await db.execute(room_product_4)
+    await db.flush()
+
     await db.commit()
-    print("Database seeded successfully with all Colombian departments, municipalities, and additional data!")
+    print("Database seeded successfully with all Colombian departments, municipalities, and additional data including products!")

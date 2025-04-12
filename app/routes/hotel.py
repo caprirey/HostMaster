@@ -3,6 +3,10 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
 
+from app.services.hotel.product import create_product, get_products, \
+    update_product, delete_product
+from app.services.hotel.room_product import delete_room_product, update_room_product, create_room_product, \
+    get_room_products, get_room_product_details
 from app.utils.auth import get_current_active_user, get_db
 from app.models.pydantic_models import (
     Accommodation, AccommodationBase, AccommodationUpdate,
@@ -12,7 +16,8 @@ from app.models.pydantic_models import (
     Image, ImageBase, ExtraService, ExtraServiceCreate, ExtraServiceUpdate,
     ReservationExtraService, ReservationExtraServiceCreate, ReservationExtraServiceUpdate,
     Review as ReviewPydantic, ReviewCreate, ReviewUpdate,
-    RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate
+    RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate, ProductCreate, Product,
+    RoomProductCreate, ProductUpdate, RoomProductUpdate, RoomProduct, RoomProductDetails
 )
 from app.models.sqlalchemy_models import UserTable
 from app.services.hotel import (
@@ -511,3 +516,94 @@ async def delete_room_inventory_route(
     """Delete a room inventory item."""
     await room_inventory.delete_room_inventory(db, inventory_id, current_user.username)
     return None
+
+################### products
+@router.post("/products/", response_model=Product, tags=["Products"], summary="Create a new product")
+async def create_product_route(
+        product_data: ProductCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Create a new product for rooms."""
+    return await create_product(db, product_data, current_user.username)
+
+@router.get("/products/", response_model=List[Product], tags=["Products"], summary="Get all products")
+async def get_products_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Retrieve all products."""
+    return await get_products(db, current_user.username)
+
+@router.patch("/products/{product_id}/", response_model=Product, tags=["Products"], summary="Update a product")
+async def update_product_route(
+        product_id: int,
+        product_data: ProductUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Update an existing product."""
+    return await update_product(db, product_id, product_data, current_user.username)
+
+@router.delete("/products/{product_id}/", status_code=status.HTTP_204_NO_CONTENT, tags=["Products"], summary="Delete a product")
+async def delete_product_route(
+        product_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Delete a product. Returns 204 No Content on success."""
+    await delete_product(db, product_id, current_user.username)
+    return None
+
+#################### ROOM PRODUCTS #################################
+@router.get("/room-products/associations/{room_id}/", response_model=List[RoomProduct], tags=["Room Products"], summary="Get room-product associations for a room")
+async def get_room_products_associations_route(
+        room_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Retrieve all room-product associations for a specific room."""
+    return await get_room_products(db, room_id, current_user.username)
+
+
+@router.post("/room-products/associations/", response_model=RoomProduct, tags=["Room Products"], summary="Create a room-product association")
+async def create_room_product_route(
+        room_product_data: RoomProductCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Create a new association between a room and a product."""
+    return await create_room_product(db, room_product_data, current_user.username)
+
+@router.patch("/room-products/associations/{room_id}/{product_id}/", response_model=RoomProduct, tags=["Room Products"], summary="Update a room-product association")
+async def update_room_product_route(
+        room_id: int,
+        product_id: int,
+        room_product_data: RoomProductUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Update an existing room-product association."""
+    return await update_room_product(db, room_id, product_id, room_product_data, current_user.username)
+
+
+@router.delete("/room-products/associations/{room_id}/{product_id}/", status_code=status.HTTP_204_NO_CONTENT, tags=["Room Products"], summary="Delete a room-product association")
+async def delete_room_product_route(
+        room_id: int,
+        product_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Delete a room-product association. Returns 204 No Content on success."""
+    await delete_room_product(db, room_id, product_id, current_user.username)
+    return None
+
+
+@router.get("/rooms/{room_id}/product-details/", response_model=List[RoomProductDetails], tags=["Room Products"], summary="Get detailed products for a room")
+async def get_room_product_details_route(
+        room_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Retrieve all products assigned to a specific room with quantity and restock details."""
+    return await get_room_product_details(db, room_id, current_user.username)

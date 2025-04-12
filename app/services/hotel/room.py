@@ -20,7 +20,7 @@ from app.models.sqlalchemy_models import (
 )
 import os
 import uuid
-from typing import List
+from typing import List, Optional
 from datetime import date
 from app.config.settings import STATIC_DIR, IMAGES_DIR
 import logging
@@ -55,14 +55,15 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> L
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
-    # Obtener todas las habitaciones del alojamiento
+    # Obtener todas las habitaciones del alojamiento con sus relaciones
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.accommodation_id == accommodation_id)
         .options(
             selectinload(RoomTable.images),
             selectinload(RoomTable.inventory_items),
-            selectinload(RoomTable.room_type)
+            selectinload(RoomTable.room_type),
+            selectinload(RoomTable.products)  # Nueva relación
         )
     )
     rooms = result.scalars().all()
@@ -122,7 +123,8 @@ async def create_room(db: AsyncSession, room: RoomBase, username: str) -> Room:
         .options(
             selectinload(RoomTable.images),
             selectinload(RoomTable.inventory_items),
-            selectinload(RoomTable.room_type)
+            selectinload(RoomTable.room_type),
+            selectinload(RoomTable.products)  # Cargar la relación products
         )
     )
     db_room = result.scalar_one()
@@ -195,7 +197,8 @@ async def update_room(db: AsyncSession, room_id: int, room_update: RoomUpdate, u
         .options(
             selectinload(RoomTable.images),
             selectinload(RoomTable.inventory_items),
-            selectinload(RoomTable.room_type)
+            selectinload(RoomTable.room_type),
+            selectinload(RoomTable.products)  # Cargar la relación products
         )
     )
     db_room = result.scalar_one()
@@ -209,7 +212,8 @@ async def get_all_rooms(db: AsyncSession, username: str) -> List[Room]:
 
     query = select(RoomTable).options(
         selectinload(RoomTable.images),
-        selectinload(RoomTable.inventory_items)
+        selectinload(RoomTable.inventory_items),
+        selectinload(RoomTable.products)
     )
 
     if user.role == "employee":
@@ -261,66 +265,71 @@ async def get_available_rooms(
         start_date: date,
         end_date: date,
         username: str,
-        accommodation_id: int | None = None
+        accommodation_id: Optional[int] = None
 ) -> List[Room]:
     logger.info(f"Checking available rooms for {username} from {start_date} to {end_date}, accommodation_id={accommodation_id}")
 
+    # Validar fechas
     if start_date >= end_date:
-        raise HTTPException(
-            status_code=400,
-            detail="Start date must be before end date"
-        )
+        raise HTTPException(status_code=400, detail="Start date must be before end date")
 
+    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     logger.info(f"User role: {user.role}")
 
-    if user.role == "admin":
+    # Construir la consulta base para habitaciones
+    query = select(RoomTable).options(
+        selectinload(RoomTable.images),
+        selectinload(RoomTable.inventory_items),  # Cargar inventory_items
+        selectinload(RoomTable.room_type),  # Cargar room_type
+        selectinload(RoomTable.products)  # Cargar products
+    )
+
+    # Filtrar por alojamiento si se proporciona
+    if accommodation_id:
+        query = query.where(RoomTable.accommodation_id == accommodation_id)
+        # Verificar que el alojamiento exista
+        result = await db.execute(
+            select(AccommodationTable)
+            .where(AccommodationTable.id == accommodation_id)
+            .options(selectinload(AccommodationTable.users))
+        )
+        accommodation = result.scalar_one_or_none()
+        if not accommodation:
+            raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    # Aplicar permisos según el rol
+    if user.role == "admin" or user.role == "user":
+        pass  # Admin y User ven todas las habitaciones
+    elif user.role == "employee":
         if accommodation_id:
-            result = await db.execute(
-                select(RoomTable)
-                .where(RoomTable.accommodation_id == accommodation_id)
-                .options(selectinload(RoomTable.images))
-            )
+            # Employee solo puede ver si está relacionado con el alojamiento
+            if username not in [u.username for u in accommodation.users]:
+                raise HTTPException(status_code=403, detail="Not authorized to view rooms of this accommodation")
         else:
-            result = await db.execute(
-                select(RoomTable)
-                .options(selectinload(RoomTable.images))
-            )
-    elif user.role == "user":
-        if accommodation_id:
-            result = await db.execute(
-                select(RoomTable)
-                .join(AccommodationTable)
-                .join(AccommodationTable.users)
-                .where(RoomTable.accommodation_id == accommodation_id)
-                .where(UserTable.username == username)
-                .options(selectinload(RoomTable.images))
-            )
-        else:
-            result = await db.execute(
-                select(RoomTable)
-                .join(AccommodationTable)
-                .join(AccommodationTable.users)
-                .where(UserTable.username == username)
-                .options(selectinload(RoomTable.images))
-            )
+            # Si no hay accommodation_id, filtrar por alojamientos relacionados
+            query = query.join(AccommodationTable).join(AccommodationTable.users).where(UserTable.username == username)
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
+    # Obtener todas las habitaciones (antes de filtrar disponibilidad)
+    result = await db.execute(query)
     all_rooms = result.scalars().all()
     logger.info(f"Found {len(all_rooms)} total rooms: {[room.id for room in all_rooms]}")
 
     if not all_rooms and accommodation_id:
         raise HTTPException(status_code=404, detail="No rooms found for this accommodation")
 
+    # Obtener reservas que se solapen con el período
     result = await db.execute(
         select(ReservationTable)
         .where(
             (ReservationTable.start_date < end_date) &
-            (ReservationTable.end_date > start_date)
+            (ReservationTable.end_date > start_date) &
+            (ReservationTable.status == "confirmed")  # Solo reservas confirmadas
         )
     )
     booked_reservations = result.scalars().all()
@@ -328,9 +337,10 @@ async def get_available_rooms(
     booked_room_ids = {reservation.room_id for reservation in booked_reservations}
     logger.info(f"Booked room IDs: {booked_room_ids}")
 
+    # Filtrar habitaciones disponibles
     available_rooms = [
         room for room in all_rooms
-        if room.id not in booked_room_ids
+        if room.id not in booked_room_ids and room.isAvailable
     ]
     logger.info(f"Available rooms: {[room.id for room in available_rooms]}")
 
@@ -341,71 +351,84 @@ async def get_booked_rooms(
         start_date: date,
         end_date: date,
         username: str,
-        accommodation_id: int | None = None
+        accommodation_id: Optional[int] = None
 ) -> List[Room]:
-    if start_date >= end_date:
-        raise HTTPException(
-            status_code=400,
-            detail="Start date must be before end date"
-        )
+    logger.info(f"Checking booked rooms for {username} from {start_date} to {end_date}, accommodation_id={accommodation_id}")
 
+    # Validar fechas
+    if start_date >= end_date:
+        raise HTTPException(status_code=400, detail="Start date must be before end date")
+
+    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    logger.info(f"User role: {user.role}")
 
-    if user.role == "admin":
+    # Construir la consulta base para habitaciones
+    query = select(RoomTable).options(
+        selectinload(RoomTable.images),
+        selectinload(RoomTable.inventory_items),  # Cargar inventory_items
+        selectinload(RoomTable.room_type),  # Cargar room_type
+        selectinload(RoomTable.products)  # Cargar products
+    )
+
+    # Filtrar por alojamiento si se proporciona
+    if accommodation_id:
+        query = query.where(RoomTable.accommodation_id == accommodation_id)
+        # Verificar que el alojamiento exista
+        result = await db.execute(
+            select(AccommodationTable)
+            .where(AccommodationTable.id == accommodation_id)
+            .options(selectinload(AccommodationTable.users))
+        )
+        accommodation = result.scalar_one_or_none()
+        if not accommodation:
+            raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    # Aplicar permisos según el rol
+    if user.role == "admin" or user.role == "user":
+        pass  # Admin y User ven todas las habitaciones reservadas
+    elif user.role == "employee":
         if accommodation_id:
-            result = await db.execute(
-                select(RoomTable)
-                .where(RoomTable.accommodation_id == accommodation_id)
-                .options(selectinload(RoomTable.images))
-            )
+            # Employee solo puede ver si está relacionado con el alojamiento
+            if username not in [u.username for u in accommodation.users]:
+                raise HTTPException(status_code=403, detail="Not authorized to view rooms of this accommodation")
         else:
-            result = await db.execute(
-                select(RoomTable)
-                .options(selectinload(RoomTable.images))
-            )
-    elif user.role == "user":
-        if accommodation_id:
-            result = await db.execute(
-                select(RoomTable)
-                .join(AccommodationTable)
-                .join(AccommodationTable.users)
-                .where(RoomTable.accommodation_id == accommodation_id)
-                .where(UserTable.username == username)
-                .options(selectinload(RoomTable.images))
-            )
-        else:
-            result = await db.execute(
-                select(RoomTable)
-                .join(AccommodationTable)
-                .join(AccommodationTable.users)
-                .where(UserTable.username == username)
-                .options(selectinload(RoomTable.images))
-            )
+            # Si no hay accommodation_id, filtrar por alojamientos relacionados
+            query = query.join(AccommodationTable).join(AccommodationTable.users).where(UserTable.username == username)
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
 
+    # Obtener todas las habitaciones (antes de filtrar reservas)
+    result = await db.execute(query)
     all_rooms = result.scalars().all()
+    logger.info(f"Found {len(all_rooms)} total rooms: {[room.id for room in all_rooms]}")
 
     if not all_rooms and accommodation_id:
         raise HTTPException(status_code=404, detail="No rooms found for this accommodation")
 
+    # Obtener reservas confirmadas que se solapen con el período
     result = await db.execute(
         select(ReservationTable)
         .where(
             (ReservationTable.start_date < end_date) &
-            (ReservationTable.end_date > start_date)
+            (ReservationTable.end_date > start_date) &
+            (ReservationTable.status == "confirmed")  # Solo reservas confirmadas
         )
     )
     booked_reservations = result.scalars().all()
+    logger.info(f"Found {len(booked_reservations)} booked reservations: {[(r.room_id, r.start_date, r.end_date) for r in booked_reservations]}")
     booked_room_ids = {reservation.room_id for reservation in booked_reservations}
+    logger.info(f"Booked room IDs: {booked_room_ids}")
 
+    # Filtrar habitaciones reservadas
     booked_rooms = [
         room for room in all_rooms
         if room.id in booked_room_ids
     ]
+    logger.info(f"Booked rooms: {[room.id for room in booked_rooms]}")
 
     return [Room.model_validate(room) for room in booked_rooms]
 
@@ -522,7 +545,8 @@ async def get_rooms_by_accommodation(db: AsyncSession, accommodation_id: int, us
         .options(
             selectinload(RoomTable.images),
             selectinload(RoomTable.inventory_items),
-            selectinload(RoomTable.room_type)
+            selectinload(RoomTable.room_type),
+            selectinload(RoomTable.products)  # Cargar la relación products
         )
     )
     rooms = result.scalars().all()

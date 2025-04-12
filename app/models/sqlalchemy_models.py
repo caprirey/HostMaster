@@ -89,7 +89,11 @@ class Room(Base):
     reservations = relationship("Reservation", back_populates="room")
     images = relationship("Image", back_populates="room")  # Relación con imágenes
     inventory_items = relationship("RoomInventory", back_populates="room")  # Nueva relación
-
+    products = relationship(  # Nueva relación muchos a muchos
+        "Product",
+        secondary="room_product",
+        back_populates="rooms"
+    )
     __table_args__ = (
         UniqueConstraint('accommodation_id', 'number', name='uix_accommodation_number'),
     )
@@ -169,4 +173,27 @@ class RoomInventory(Base):
 
     __table_args__ = (
         UniqueConstraint('room_id', 'product_name', name='uix_room_product'),
+    )
+
+    # Nueva tabla intermedia RoomProduct
+room_product = Table(
+    'room_product',
+    Base.metadata,
+    Column('room_id', Integer, ForeignKey('rooms.id'), primary_key=True),
+    Column('product_id', Integer, ForeignKey('products.id'), primary_key=True),
+    Column('quantity', Integer, nullable=False, default=1),  # Cantidad asignada
+    Column('needs_restock', Boolean, nullable=False, default=False)  # Necesita reposición
+)
+
+# Nueva tabla Products
+class Product(Base):
+    __tablename__ = 'products'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)  # Ejemplo: "Toallas", "Sábanas"
+    description = Column(String, nullable=True)  # Descripción opcional
+    price = Column(Float, nullable=True)  # Precio opcional del producto
+    rooms = relationship(  # Relación muchos a muchos con Room
+        "Room",
+        secondary="room_product",
+        back_populates="products"
     )

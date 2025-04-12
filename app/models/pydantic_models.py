@@ -121,6 +121,7 @@ class Room(RoomBase):
     id: int
     images: List["Image"] = []
     inventory_items: List["RoomInventory"] = []  # Nueva relación
+    products:  List["Product"] = []
     model_config = {"from_attributes": True}
 
 class ReservationBase(BaseModel):
@@ -354,4 +355,85 @@ class RoomInventoryUpdate(BaseModel):
 class RoomInventory(RoomInventoryBase):
     id: int
     needs_restock: bool
+    model_config = {"from_attributes": True}
+
+
+
+# Nuevos modelos para Product
+class ProductBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: Optional[float] = None
+
+    @field_validator('price')
+    @classmethod
+    def price_must_be_non_negative(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError('Price must be non-negative')
+        return v
+
+class ProductCreate(ProductBase):
+    pass
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+
+    @field_validator('price')
+    @classmethod
+    def price_must_be_non_negative(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError('Price must be non-negative')
+        return v
+
+class Product(ProductBase):
+    id: int
+    model_config = {"from_attributes": True}
+
+# Nuevos modelos para RoomProduct
+class RoomProductBase(BaseModel):
+    room_id: int
+    product_id: int
+    quantity: int
+    needs_restock: bool
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError('Quantity must be positive')
+        return v
+
+class RoomProductCreate(RoomProductBase):
+    pass
+
+class RoomProductUpdate(BaseModel):
+    quantity: Optional[int] = None
+    needs_restock: Optional[bool] = None
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError('Quantity must be positive')
+        return v
+
+class RoomProduct(RoomProductBase):
+    model_config = {"from_attributes": True}
+
+
+
+class RoomProductDetails(BaseModel):
+    product: Product
+    quantity: int
+    needs_restock: bool
+
+    @field_validator('quantity')
+    @classmethod
+    def quantity_must_be_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError('Quantity must be positive')
+        return v
+
     model_config = {"from_attributes": True}
