@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Annotated
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -7,6 +7,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from app.config.settings import SECRET_KEY, ALGORITHM
 from app.models.pydantic_models import UserInDB, TokenData
 from app.models.sqlalchemy_models import UserTable
@@ -23,7 +24,14 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 async def get_user(db: AsyncSession, username: str):
-    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    result = await db.execute(
+        select(UserTable)
+        .where(UserTable.username == username)
+        .options(
+            selectinload(UserTable.accommodations),
+            selectinload(UserTable.reviews)
+        )
+    )
     user = result.scalar_one_or_none()
     if user:
         return UserInDB(
@@ -32,7 +40,13 @@ async def get_user(db: AsyncSession, username: str):
             full_name=user.full_name,
             hashed_password=user.hashed_password,
             disabled=user.disabled,
-            role=user.role
+            role=user.role,
+            firstname=user.firstname,
+            lastname=user.lastname,
+            document_number=user.document_number,
+            image=user.image,
+            reviews=user.reviews,
+            accommodation_ids=[a.id for a in user.accommodations] if user.accommodations else []
         )
     return None
 
@@ -74,5 +88,5 @@ async def get_current_active_user(
         current_user: Annotated[UserInDB, Depends(get_current_user)],
 ):
     if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
     return current_user

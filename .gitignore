@@ -54,3 +54,4 @@ Thumbs.db  # Windows
 # Directorios de dependencias instaladas localmente
 site-packages/
 ngrok.exe
+*.jpeg

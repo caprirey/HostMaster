@@ -40,7 +40,7 @@ async def create_room_product(db: AsyncSession, room_product_data: RoomProductCr
         raise HTTPException(status_code=404, detail="Product not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden crear asociaciones sin restricciones
     elif user.role == "employee":
         # Employee solo puede crear si está relacionado con el alojamiento
@@ -107,7 +107,7 @@ async def update_room_product(db: AsyncSession, room_id: int, product_id: int, r
         raise HTTPException(status_code=404, detail="Product not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden actualizar asociaciones sin restricciones
     elif user.role == "employee":
         # Employee solo puede actualizar si está relacionado con el alojamiento
@@ -179,7 +179,7 @@ async def get_room_products(db: AsyncSession, room_id: int, username: str) -> Li
         raise HTTPException(status_code=404, detail="Room not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden ver asociaciones sin restricciones
     elif user.role == "employee":
         # Employee solo puede ver si está relacionado con el alojamiento
@@ -233,7 +233,7 @@ async def delete_room_product(db: AsyncSession, room_id: int, product_id: int, u
         raise HTTPException(status_code=404, detail="Product not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden eliminar asociaciones sin restricciones
     elif user.role == "employee":
         # Employee solo puede eliminar si está relacionado con el alojamiento
@@ -289,7 +289,7 @@ async def get_room_product_details(db: AsyncSession, room_id: int, username: str
         raise HTTPException(status_code=404, detail="Room not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden ver productos sin restricciones
     elif user.role == "employee":
         # Employee solo puede ver si está relacionado con el alojamiento

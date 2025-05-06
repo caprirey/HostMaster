@@ -1,14 +1,17 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from app.models.pydantic_models import User, UserCreate, UserInDB, UserUpdate, ChangePasswordRequest
 from app.models.sqlalchemy_models import UserTable, Accommodation
 from app.utils.auth import get_password_hash, authenticate_user as auth_user, create_access_token
 from app.config.settings import ACCESS_TOKEN_EXPIRE_DELTA
 from sqlalchemy.orm import selectinload
 from app.utils.auth import get_password_hash, verify_password
+import os
+import uuid
+from pathlib import Path
 
-async def register_user_service(db: AsyncSession, user_data: UserCreate) -> User:
+async def register_user_service(db: AsyncSession, user_data: UserCreate, image_file: UploadFile | None = None) -> User:
     # Validar si el username ya existe
     username_check = await db.execute(
         select(UserTable).where(UserTable.username == user_data.username)
@@ -30,6 +33,39 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate) -> User
                 detail="Email already registered",
             )
 
+    # Validar si el document_number ya existe
+    document_check = await db.execute(
+        select(UserTable).where(UserTable.document_number == user_data.document_number)
+    )
+    if document_check.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document number already registered",
+        )
+
+    # Procesar la imagen si se proporciona
+    image_path = None
+    if image_file:
+        # Validar tipo de archivo
+        allowed_extensions = {".jpg", ".jpeg", ".png"}
+        file_extension = os.path.splitext(image_file.filename)[1].lower()
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid image format. Only JPG, JPEG, and PNG are allowed",
+            )
+
+        # Generar un nombre único para la imagen
+        unique_filename = f"user_{user_data.document_number}_{uuid.uuid4().hex}{file_extension}"
+        image_dir = Path("static/images")
+        image_dir.mkdir(parents=True, exist_ok=True)
+        image_path = f"static/images/{unique_filename}"
+
+        # Guardar la imagen
+        with open(image_path, "wb") as f:
+            content = await image_file.read()
+            f.write(content)
+
     # Crear el nuevo usuario
     hashed_password = get_password_hash(user_data.password)
     new_user = UserTable(
@@ -38,7 +74,11 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate) -> User
         full_name=user_data.full_name,
         hashed_password=hashed_password,
         disabled=False,
-        role="user"
+        role=user_data.role or "client",
+        firstname=user_data.firstname,
+        lastname=user_data.lastname,
+        document_number=user_data.document_number,
+        image=image_path
     )
 
     # Asignar alojamientos solo si se proporcionan explícitamente
@@ -63,8 +103,8 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate) -> User
         select(UserTable)
         .where(UserTable.username == new_user.username)
         .options(
-            selectinload(UserTable.accommodations),  # Cargar accommodations
-            selectinload(UserTable.reviews)          # Cargar reviews
+            selectinload(UserTable.accommodations),
+            selectinload(UserTable.reviews)
         )
     )
     new_user = result.scalar_one()
@@ -76,7 +116,11 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate) -> User
         "full_name": new_user.full_name,
         "disabled": new_user.disabled,
         "role": new_user.role,
-        "reviews": new_user.reviews,  # Lista vacía para nuevos usuarios
+        "firstname": new_user.firstname,
+        "lastname": new_user.lastname,
+        "document_number": new_user.document_number,
+        "image": new_user.image,
+        "reviews": new_user.reviews,
         "accommodation_ids": [a.id for a in new_user.accommodations] if new_user.accommodations else []
     }
     return User.model_validate(user_dict)
@@ -94,7 +138,7 @@ async def login_user_service(db: AsyncSession, username: str, password: str) -> 
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
-async def update_user_service(db: AsyncSession, username: str, user_data: UserUpdate) -> User:
+async def update_user_service(db: AsyncSession, username: str, user_data: UserUpdate, image_file: UploadFile | None = None) -> User:
     result = await db.execute(
         select(UserTable)
         .where(UserTable.username == username)
@@ -105,12 +149,56 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
     )
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Procesar la imagen si se proporciona
+    image_path = user.image  # Mantener la imagen existente si no se proporciona una nueva
+    if image_file:
+        # Validar tipo de archivo
+        allowed_extensions = {".jpg", ".jpeg", ".png"}
+        file_extension = os.path.splitext(image_file.filename)[1].lower()
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid image format. Only JPG, JPEG, and PNG are allowed",
+            )
+
+        # Generar un nombre único para la imagen
+        unique_filename = f"user_{user_data.document_number or user.document_number}_{uuid.uuid4().hex}{file_extension}"
+        image_dir = Path("static/images")
+        image_dir.mkdir(parents=True, exist_ok=True)
+        image_path = f"static/images/{unique_filename}"
+
+        # Guardar la imagen
+        with open(image_path, "wb") as f:
+            content = await image_file.read()
+            f.write(content)
 
     if user_data.email is not None:
         user.email = user_data.email
     if user_data.full_name is not None:
         user.full_name = user_data.full_name
+    if user_data.firstname is not None:
+        user.firstname = user_data.firstname
+    if user_data.lastname is not None:
+        user.lastname = user_data.lastname
+    if user_data.document_number is not None:
+        # Validar si el nuevo document_number ya existe
+        document_check = await db.execute(
+            select(UserTable)
+            .where(UserTable.document_number == user_data.document_number)
+            .where(UserTable.username != username)
+        )
+        if document_check.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Document number already registered",
+            )
+        user.document_number = user_data.document_number
+    if image_path is not None:
+        user.image = image_path
+    if user_data.role is not None:
+        user.role = user_data.role
     if user_data.accommodation_ids is not None:
         accommodations = await db.execute(
             select(Accommodation).where(Accommodation.id.in_(user_data.accommodation_ids))
@@ -122,6 +210,8 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
                 detail="One or more accommodation IDs do not exist",
             )
         user.accommodations = accommodations_list
+    if user_data.password is not None:
+        user.hashed_password = get_password_hash(user_data.password)
 
     await db.commit()
     await db.refresh(user)
@@ -132,11 +222,14 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
         "full_name": user.full_name,
         "disabled": user.disabled,
         "role": user.role,
+        "firstname": user.firstname,
+        "lastname": user.lastname,
+        "document_number": user.document_number,
+        "image": user.image,
         "reviews": user.reviews,
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }
     return User.model_validate(user_dict)
-
 
 async def change_password_service(db: AsyncSession, username: str, password_data: ChangePasswordRequest) -> User:
     # Buscar el usuario con sus relaciones cargadas
@@ -150,7 +243,7 @@ async def change_password_service(db: AsyncSession, username: str, password_data
     )
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     # Verificar la contraseña actual
     if not verify_password(password_data.current_password, user.hashed_password):
@@ -172,6 +265,10 @@ async def change_password_service(db: AsyncSession, username: str, password_data
         "full_name": user.full_name,
         "disabled": user.disabled,
         "role": user.role,
+        "firstname": user.firstname,
+        "lastname": user.lastname,
+        "document_number": user.document_number,
+        "image": user.image,
         "reviews": user.reviews,
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }

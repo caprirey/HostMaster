@@ -8,7 +8,7 @@ from app.models.sqlalchemy_models import (
     Image, Review, ExtraService, reservation_extra_service, RoomInventory, Product, room_product
 )
 from app.utils.auth import get_password_hash
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 async def seed_database(db: AsyncSession):
     result = await db.execute(select(UserTable))
@@ -16,32 +16,92 @@ async def seed_database(db: AsyncSession):
         print("Database already seeded, skipping...")
         return
 
-    # Usuarios
+    # Usuarios (con nuevos campos: firstname, lastname, document_number, image)
     admin_user = UserTable(
         username="admin",
-        email="admin@hostmastercolombia.com",
+        email="admin@hotelescolombia.com",
         full_name="Carlos Andrés Gómez",
+        firstname="Carlos",
+        lastname="Gómez",
+        document_number="1234567890",
         hashed_password=get_password_hash("admin123"),
         disabled=False,
-        role="admin"
+        role="admin",
+        image="static/images/admin.jpg"
     )
     user1 = UserTable(
         username="maria",
-        email="maria.lopez@hostmastercolombia.com",
+        email="maria.lopez@hotelescolombia.com",
         full_name="María Fernanda López",
-        hashed_password=get_password_hash("maria2023"),
+        firstname="María",
+        lastname="López",
+        document_number="9876543210",
+        hashed_password=get_password_hash("maria"),
         disabled=False,
-        role="user"
+        role="client",
+        image="static/images/maria.jpg"
     )
     employee = UserTable(
         username="camilo",
-        email="camilo@hostmastercolombia.com",
+        email="camilo@hotelescolombia.com",
         full_name="Camilo Prieto",
+        firstname="Camilo",
+        lastname="Prieto",
+        document_number="4567891230",
         hashed_password=get_password_hash("camilo"),
         disabled=False,
-        role="employee"
+        role="employee",
+        image="static/images/camilo.jpg"
     )
-    db.add_all([admin_user, user1, employee])
+    user2 = UserTable(
+        username="juan",
+        email="juan.perez@hotelescolombia.com",
+        full_name="Juan David Pérez",
+        firstname="Juan",
+        lastname="Pérez",
+        document_number="1122334455",
+        hashed_password=get_password_hash("juan123"),
+        disabled=False,
+        role="client",
+        image="static/images/juan.jpg"
+    )
+    user3 = UserTable(
+        username="sofia",
+        email="sofia.garcia@hotelescolombia.com",
+        full_name="Sofía Alejandra García",
+        firstname="Sofía",
+        lastname="García",
+        document_number="2233445566",
+        hashed_password=get_password_hash("sofia123"),
+        disabled=False,
+        role="client",
+        image="static/images/sofia.jpg"
+    )
+    user4 = UserTable(
+        username="pedro",
+        email="pedro.martinez@hotelescolombia.com",
+        full_name="Pedro Antonio Martínez",
+        firstname="Pedro",
+        lastname="Martínez",
+        document_number="3344556677",
+        hashed_password=get_password_hash("pedro123"),
+        disabled=False,
+        role="client",
+        image="static/images/pedro.jpg"
+    )
+    user5 = UserTable(
+        username="laura",
+        email="laura.rodriguez@hotelescolombia.com",
+        full_name="Laura Valentina Rodríguez",
+        firstname="Laura",
+        lastname="Rodríguez",
+        document_number="4455667788",
+        hashed_password=get_password_hash("laura123"),
+        disabled=False,
+        role="client",
+        image="static/images/laura.jpg"
+    )
+    db.add_all([admin_user, user1, employee, user2, user3, user4, user5])
     await db.flush()
 
     # País
@@ -108,7 +168,6 @@ async def seed_database(db: AsyncSession):
         address="Carrera 10 # 26-21",
         information="Hotel histórico en el centro de Bogotá"
     )
-    # Nuevos alojamientos
     hotel_casa_luz = Accommodation(
         name="Casa de la Luz",
         city_id=cartagena_id,
@@ -146,7 +205,13 @@ async def seed_database(db: AsyncSession):
             {"user_username": "admin", "accommodation_id": hotel_casa_luz.id},
             {"user_username": "maria", "accommodation_id": hotel_verde_valle.id},
             {"user_username": "camilo", "accommodation_id": hotel_jardin_secreto.id},
-            {"user_username": "admin", "accommodation_id": hotel_cielo_abierto.id}
+            {"user_username": "admin", "accommodation_id": hotel_cielo_abierto.id},
+            {"user_username": "juan", "accommodation_id": hotel_poblado.id},
+            {"user_username": "sofia", "accommodation_id": hotel_tequendama.id},
+            {"user_username": "pedro", "accommodation_id": hotel_casa_luz.id},
+            {"user_username": "laura", "accommodation_id": hotel_verde_valle.id},
+            {"user_username": "juan", "accommodation_id": hotel_jardin_secreto.id},
+            {"user_username": "sofia", "accommodation_id": hotel_cielo_abierto.id}
         ]
     )
     await db.flush()
@@ -168,7 +233,8 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_poblado.id,
             type_id=room_type_id,
             number=f"{100 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     # Habitaciones para Hotel Tequendama
     for i in range(1, 11):
@@ -178,7 +244,8 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_tequendama.id,
             type_id=room_type_id,
             number=f"{200 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     # Habitaciones para Casa de la Luz
     for i in range(1, 11):
@@ -188,7 +255,8 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_casa_luz.id,
             type_id=room_type_id,
             number=f"{300 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     # Habitaciones para Verde Valle
     for i in range(1, 11):
@@ -198,7 +266,8 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_verde_valle.id,
             type_id=room_type_id,
             number=f"{400 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     # Habitaciones para Jardín Secreto
     for i in range(1, 11):
@@ -208,7 +277,8 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_jardin_secreto.id,
             type_id=room_type_id,
             number=f"{500 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     # Habitaciones para Cielo Abierto
     for i in range(1, 11):
@@ -218,15 +288,16 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_cielo_abierto.id,
             type_id=room_type_id,
             number=f"{600 + i}",
-            price=price
+            price=price,
+            isAvailable=True
         ))
     db.add_all(rooms)
     await db.flush()
 
-    # Reservas (10 por alojamiento)
+    # Reservas (10 por alojamiento, solo para usuarios con role="client")
     reservations = []
     base_date = date(2025, 5, 1)
-    users = ["admin", "maria", "camilo"]
+    client_usernames = ["maria", "juan", "sofia", "pedro", "laura"]  # Usuarios con role="client"
     statuses = ["confirmed", "pending", "cancelled"]
     accommodations = [hotel_poblado, hotel_tequendama, hotel_casa_luz, hotel_verde_valle, hotel_jardin_secreto, hotel_cielo_abierto]
 
@@ -238,11 +309,12 @@ async def seed_database(db: AsyncSession):
             room = accom_rooms[i % len(accom_rooms)]
             start_date = base_date + timedelta(days=i * 7)
             end_date = start_date + timedelta(days=3)
-            user_index = i % 3
+            # Asignar usuario rotando entre los clientes
+            client_index = (i % 5)  # Rotar entre los 5 usuarios client
             status_index = i % 3
             guest_count = 1 if room.type_id == sencilla.id else (2 if room.type_id == doble.id else 4)
             reservations.append(Reservation(
-                user_username=users[user_index],
+                user_username=client_usernames[client_index],
                 room_id=room.id,
                 accommodation_id=accom.id,
                 start_date=start_date,
@@ -271,37 +343,43 @@ async def seed_database(db: AsyncSession):
             accommodation_id=hotel_poblado.id,
             user_username="admin",
             rating=5,
-            comment="Excelente servicio y ubicación"
+            comment="Excelente servicio y ubicación",
+            created_at=datetime.utcnow()
         ),
         Review(
             accommodation_id=hotel_tequendama.id,
             user_username="maria",
             rating=4,
-            comment="Buen hotel, pero el wifi podría mejorar"
+            comment="Buen hotel, pero el wifi podría mejorar",
+            created_at=datetime.utcnow()
         ),
         Review(
             accommodation_id=hotel_casa_luz.id,
             user_username="camilo",
             rating=5,
-            comment="Vista espectacular y atención impecable"
+            comment="Vista espectacular y atención impecable",
+            created_at=datetime.utcnow()
         ),
         Review(
             accommodation_id=hotel_verde_valle.id,
             user_username="admin",
             rating=4,
-            comment="Ambiente relajante, ideal para descansar"
+            comment="Ambiente relajante, ideal para descansar",
+            created_at=datetime.utcnow()
         ),
         Review(
             accommodation_id=hotel_jardin_secreto.id,
             user_username="maria",
             rating=5,
-            comment="Los jardines son un sueño"
+            comment="Los jardines son un sueño",
+            created_at=datetime.utcnow()
         ),
         Review(
             accommodation_id=hotel_cielo_abierto.id,
             user_username="camilo",
             rating=4,
-            comment="Moderno y cómodo, pero algo ruidoso"
+            comment="Moderno y cómodo, pero algo ruidoso",
+            created_at=datetime.utcnow()
         )
     ]
     db.add_all(reviews)
@@ -392,4 +470,4 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     await db.commit()
-    print("Database seeded successfully with all Colombian departments, municipalities, additional accommodations, rooms, reservations, and products!")
+    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and products!")

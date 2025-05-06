@@ -46,7 +46,7 @@ async def get_rooms(db: AsyncSession, username: str, accommodation_id: int) -> L
         raise HTTPException(status_code=404, detail="Accommodation not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User pueden ver todas las habitaciones sin restricciones
     elif user.role == "employee":
         # Employee solo puede ver si está relacionado con el alojamiento
@@ -302,7 +302,7 @@ async def get_available_rooms(
             raise HTTPException(status_code=404, detail="Accommodation not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User ven todas las habitaciones
     elif user.role == "employee":
         if accommodation_id:
@@ -388,7 +388,7 @@ async def get_booked_rooms(
             raise HTTPException(status_code=404, detail="Accommodation not found")
 
     # Aplicar permisos según el rol
-    if user.role == "admin" or user.role == "user":
+    if user.role == "admin" or user.role == "client":
         pass  # Admin y User ven todas las habitaciones reservadas
     elif user.role == "employee":
         if accommodation_id:
@@ -552,3 +552,53 @@ async def get_rooms_by_accommodation(db: AsyncSession, accommodation_id: int, us
     rooms = result.scalars().all()
 
     return [Room.model_validate(room) for room in rooms]
+
+
+async def get_room_by_id(db: AsyncSession, room_id: int, username: str) -> Room:
+    """
+    Retrieve a specific room by its ID based on user role permissions.
+
+    Args:
+        db (AsyncSession): Database session
+        room_id (int): ID of the room to fetch
+        username (str): Username of the authenticated user
+
+    Returns:
+        Room: The requested room with its associated data
+
+    Raises:
+        HTTPException: 404 if user or room not found, 403 if not authorized
+    """
+    # Verificar que el usuario exista
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Obtener la habitación con sus relaciones y el alojamiento asociado
+    result = await db.execute(
+        select(RoomTable)
+        .where(RoomTable.id == room_id)
+        .options(
+            selectinload(RoomTable.images),
+            selectinload(RoomTable.inventory_items),
+            selectinload(RoomTable.room_type),
+            selectinload(RoomTable.products),
+            selectinload(RoomTable.accommodation).selectinload(AccommodationTable.users)
+        )
+    )
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Aplicar permisos según el rol
+    if user.role == "admin" or user.role == "client":
+        pass  # Admin y Client pueden ver cualquier habitación
+    elif user.role == "employee":
+        # Employee solo puede ver si está relacionado con el alojamiento
+        if username not in [u.username for u in room.accommodation.users]:
+            raise HTTPException(status_code=403, detail="Not authorized to view this room")
+    else:
+        raise HTTPException(status_code=403, detail="Invalid role")
+
+    return Room.model_validate(room)

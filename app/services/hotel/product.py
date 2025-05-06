@@ -23,7 +23,7 @@ async def create_product(db: AsyncSession, product: ProductCreate, username: str
     logger.info(f"User role: {user.role}")
 
     # Aplicar permisos según el rol
-    if user.role not in ["admin", "user"]:
+    if user.role not in ["admin", "client"]:
         raise HTTPException(status_code=403, detail="Not authorized to create products")
 
     # Crear el producto con el modelo SQLAlchemy
@@ -48,7 +48,7 @@ async def get_products(db: AsyncSession, username: str) -> List[PydanticProduct]
     logger.info(f"User role: {user.role}")
 
     # Aplicar permisos según el rol
-    if user.role not in ["admin", "user"]:
+    if user.role not in ["admin", "client"]:
         raise HTTPException(status_code=403, detail="Not authorized to view products")
 
     # Obtener todos los productos
@@ -70,7 +70,7 @@ async def update_product(db: AsyncSession, product_id: int, product_update: Prod
     logger.info(f"User role: {user.role}")
 
     # Aplicar permisos según el rol
-    if user.role not in ["admin", "user"]:
+    if user.role not in ["admin", "client"]:
         raise HTTPException(status_code=403, detail="Not authorized to update products")
 
     # Verificar que el producto exista
@@ -102,7 +102,7 @@ async def delete_product(db: AsyncSession, product_id: int, username: str) -> No
     logger.info(f"User role: {user.role}")
 
     # Aplicar permisos según el rol
-    if user.role not in ["admin", "user"]:
+    if user.role not in ["admin", "client"]:
         raise HTTPException(status_code=403, detail="Not authorized to delete products")
 
     # Verificar que el producto exista

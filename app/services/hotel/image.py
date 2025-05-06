@@ -70,7 +70,7 @@ async def get_images(db: AsyncSession, username: str, accommodation_id: int = No
     query = select(ImageTable)
     if accommodation_id:
         query = query.where(ImageTable.accommodation_id == accommodation_id)
-        if user.role == "user":
+        if user.role == "client":
             result = await db.execute(
                 select(AccommodationTable).where(
                     AccommodationTable.id == accommodation_id,
@@ -81,7 +81,7 @@ async def get_images(db: AsyncSession, username: str, accommodation_id: int = No
                 return []
     if room_id:
         query = query.where(ImageTable.room_id == room_id)
-        if user.role == "user":
+        if user.role == "client":
             result = await db.execute(
                 select(RoomTable).join(AccommodationTable).where(
                     RoomTable.id == room_id,
@@ -91,7 +91,7 @@ async def get_images(db: AsyncSession, username: str, accommodation_id: int = No
             if not result.scalar_one_or_none():
                 return []
 
-    if not accommodation_id and not room_id and user.role == "user":
+    if not accommodation_id and not room_id and user.role == "client":
         result = await db.execute(
             select(AccommodationTable).where(AccommodationTable.created_by == username)
         )

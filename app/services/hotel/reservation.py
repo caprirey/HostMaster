@@ -5,7 +5,15 @@ from app.models.pydantic_models import Reservation, ReservationBase, Reservation
 from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable, Accommodation
 from sqlalchemy.orm import selectinload
 
-async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str) -> Reservation:
+async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str, current_role: str) -> Reservation:
+
+    if current_role == "client":
+        if reservation_data.user_username is not None and reservation_data.user_username != current_username:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clients can only create reservations for themselves"
+            )
+
     # Determinar el username a usar: el especificado o el del usuario autenticado
     target_username = reservation_data.user_username if reservation_data.user_username is not None else current_username
 
@@ -95,12 +103,12 @@ async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.role == "admin":
+    if user.role == "admin" or user.role == "employee":
         result = await db.execute(
             select(ReservationTable)
             .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
         )
-    elif user.role == "user":
+    elif user.role == "client":
         result = await db.execute(
             select(ReservationTable)
             .where(ReservationTable.user_username == username)
@@ -138,7 +146,7 @@ async def update_reservation(
         raise HTTPException(status_code=404, detail="Reservation not found")
 
     # Verificar permisos: solo el creador o un admin puede actualizar
-    if user.role != "admin" and db_reservation.user_username != username:
+    if (user.role != "admin" or user.role != "employee") and db_reservation.user_username != username:
         raise HTTPException(status_code=403, detail="Not authorized to update this reservation")
 
     # Validar el nuevo user_username si se proporciona
@@ -237,7 +245,7 @@ async def delete_reservation(db: AsyncSession, reservation_id: int, username: st
         raise HTTPException(status_code=404, detail="Reservation not found")
 
     # Verificar permisos: solo el creador de la reserva o un admin puede eliminar
-    if user.role != "admin" and db_reservation.user_username != username:
+    if (user.role != "admin" or user.role != "employee") and db_reservation.user_username != username:
         raise HTTPException(status_code=403, detail="Not authorized to delete this reservation")
 
     # Eliminar la reserva

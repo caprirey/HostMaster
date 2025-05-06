@@ -12,12 +12,16 @@ class UserTable(Base):
     full_name = Column(String, nullable=True)
     hashed_password = Column(String, nullable=False)
     disabled = Column(Boolean, default=False)
-    role = Column(String, default="user")
+    role = Column(String, default="client")
+    firstname = Column(String, nullable=False)  # Nuevo campo: nombre
+    lastname = Column(String, nullable=False)  # Nuevo campo: apellido
+    document_number = Column(String, nullable=False, unique=True)  # Nuevo campo: número de documento, único
+    image = Column(String, nullable=True)  # Nuevo campo: URL o ruta de la imagen
     reservations = relationship("Reservation", back_populates="user")
     reviews = relationship("Review", back_populates="user")
     accommodations = relationship(
         "Accommodation",
-        secondary="user_accommodation",  # Usar la tabla intermedia
+        secondary="user_accommodation",
         back_populates="users"
     )
 

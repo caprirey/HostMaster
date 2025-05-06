@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
 
+from app.services.hotel.accommodation import get_accommodation_by_id
 from app.services.hotel.product import create_product, get_products, \
     update_product, delete_product
 from app.services.hotel.room_product import delete_room_product, update_room_product, create_room_product, \
@@ -142,6 +143,26 @@ async def delete_accommodation_route(
     await accommodation.delete_accommodation(db, accommodation_id, current_user.username)
     return None
 
+@router.get("/accommodations/{accommodation_id}", response_model=Accommodation, tags=["Accommodations"], summary="Get an accommodation by ID")
+async def get_accommodation(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Obtiene un alojamiento por su ID. Accesible para admin, empleados asociados y clientes."""
+    return await accommodation.get_accommodation_by_id(db, accommodation_id, current_user.username)
+
+
+@router.get("/accommodations/{accommodation_id}", response_model=Accommodation, tags=["Accommodations"])
+async def get_accommodation(
+        accommodation_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserTable = Depends(get_current_active_user)
+):
+    return await get_accommodation_by_id(db, accommodation_id, current_user.username)
+
+
+
 # --- Room Types ---
 @router.post("/room-types/", response_model=RoomType, status_code=status.HTTP_201_CREATED, tags=["Room Types"], summary="Create a room type")
 async def create_room_type_route(
@@ -266,7 +287,7 @@ async def create_reservation_route(
         current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     """Create a new reservation."""
-    return await create_reservation(db, reservation_data, current_user.username)
+    return await create_reservation(db, reservation_data, current_user.username, current_user.role)
 
 @router.get("/reservations/", response_model=List[Reservation], tags=["Reservations"], summary="Get reservations")
 async def get_reservations_route(
@@ -607,3 +628,15 @@ async def get_room_product_details_route(
 ):
     """Retrieve all products assigned to a specific room with quantity and restock details."""
     return await get_room_product_details(db, room_id, current_user.username)
+
+
+# app/routers/hotel.py
+
+@router.get("/rooms/{room_id}", response_model=Room, tags=["Rooms"], summary="Get a room by ID")
+async def get_room_by_id_route(
+        room_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Retrieve details of a specific room by its ID."""
+    return await room.get_room_by_id(db, room_id, current_user.username)

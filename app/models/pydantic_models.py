@@ -16,7 +16,11 @@ class UserBase(BaseModel):
     email: str | None = None
     full_name: str | None = None
     disabled: bool | None = None
-    role: str = "user"
+    role: str = "client"
+    firstname: str  # Nuevo campo: nombre
+    lastname: str  # Nuevo campo: apellido
+    document_number: str  # Nuevo campo: número de documento
+    image: Optional[str] = None  # Nuevo campo: URL o ruta de la imagen
 
 class User(UserBase):
     reviews: List["Review"] = []  # Nueva relación
@@ -32,7 +36,11 @@ class UserCreate(BaseModel):
     full_name: str | None = None
     password: str
     accommodation_ids: Optional[List[int]] = None  # Añadir campo para IDs de alojamientos
-    role: Optional[str] = "user"  # Campo opcional con valor por defecto "user"
+    role: Optional[str] = "client"  # Campo opcional con valor por defecto "client"
+    firstname: str  # Nuevo campo
+    lastname: str  # Nuevo campo
+    document_number: str  # Nuevo campo
+    image: Optional[str] = None  # Nuevo campo
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
@@ -40,6 +48,10 @@ class UserUpdate(BaseModel):
     accommodation_ids: Optional[List[int]] = None
     role: Optional[str] = None  # Nuevo campo para permitir cambiar el rol
     password: Optional[str] = None  # Nuevo campo para actualizar la contraseña
+    firstname: Optional[str] = None  # Nuevo campo
+    lastname: Optional[str] = None  # Nuevo campo
+    document_number: Optional[str] = None  # Nuevo campo
+    image: Optional[str] = None  # Nuevo campo
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

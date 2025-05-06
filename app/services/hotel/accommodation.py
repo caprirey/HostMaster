@@ -45,7 +45,7 @@ async def get_accommodations(db: AsyncSession, username: str) -> List[Accommodat
             )
         )
         include_user_usernames = True
-    elif user.role == "user":
+    elif user.role == "client":
         result = await db.execute(
             select(AccommodationTable).options(
                 selectinload(AccommodationTable.images),
@@ -241,3 +241,41 @@ async def delete_accommodation(db: AsyncSession, accommodation_id: int, username
 
     await db.delete(db_accommodation)
     await db.commit()
+
+
+async def get_accommodation_by_id(db: AsyncSession, accommodation_id: int, username: str) -> Accommodation:
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    query = select(AccommodationTable).where(AccommodationTable.id == accommodation_id).options(
+        selectinload(AccommodationTable.images),
+        selectinload(AccommodationTable.reviews),
+        selectinload(AccommodationTable.users)
+    )
+
+    if user.role == "employee":
+        query = query.join(AccommodationTable.users).where(UserTable.username == username)
+    elif user.role == "client":
+        query = select(AccommodationTable).where(AccommodationTable.id == accommodation_id).options(
+            selectinload(AccommodationTable.images),
+            selectinload(AccommodationTable.reviews)
+        )
+
+    result = await db.execute(query)
+    db_accommodation = result.scalar_one_or_none()
+    if not db_accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    include_user_usernames = user.role in {"admin", "employee"}
+    return Accommodation.model_validate({
+        "id": db_accommodation.id,
+        "name": db_accommodation.name,
+        "city_id": db_accommodation.city_id,
+        "address": db_accommodation.address,
+        "information": db_accommodation.information,
+        "user_usernames": [u.username for u in db_accommodation.users] if include_user_usernames else [],
+        "images": db_accommodation.images,
+        "reviews": db_accommodation.reviews
+    })
