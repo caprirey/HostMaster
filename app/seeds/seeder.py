@@ -16,7 +16,7 @@ async def seed_database(db: AsyncSession):
         print("Database already seeded, skipping...")
         return
 
-    # Usuarios (con nuevos campos: firstname, lastname, document_number, image)
+    # Usuarios
     admin_user = UserTable(
         username="admin",
         email="admin@hotelescolombia.com",
@@ -195,7 +195,7 @@ async def seed_database(db: AsyncSession):
     db.add_all([hotel_poblado, hotel_tequendama, hotel_casa_luz, hotel_verde_valle, hotel_jardin_secreto, hotel_cielo_abierto])
     await db.flush()
 
-    # Asociar usuarios a alojamientos mediante la tabla intermedia
+    # Asociar usuarios a alojamientos
     await db.execute(
         insert(Accommodation.__table__.metadata.tables['user_accommodation']),
         [
@@ -225,7 +225,6 @@ async def seed_database(db: AsyncSession):
 
     # Habitaciones
     rooms = []
-    # Habitaciones para Hotel El Poblado Plaza
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 60000 if i <= 4 else (80000 if i <= 7 else 120000)
@@ -236,7 +235,6 @@ async def seed_database(db: AsyncSession):
             price=price,
             isAvailable=True
         ))
-    # Habitaciones para Hotel Tequendama
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 65000 if i <= 4 else (85000 if i <= 7 else 130000)
@@ -247,7 +245,6 @@ async def seed_database(db: AsyncSession):
             price=price,
             isAvailable=True
         ))
-    # Habitaciones para Casa de la Luz
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 70000 if i <= 4 else (90000 if i <= 7 else 140000)
@@ -258,7 +255,6 @@ async def seed_database(db: AsyncSession):
             price=price,
             isAvailable=True
         ))
-    # Habitaciones para Verde Valle
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 62000 if i <= 4 else (82000 if i <= 7 else 125000)
@@ -269,7 +265,6 @@ async def seed_database(db: AsyncSession):
             price=price,
             isAvailable=True
         ))
-    # Habitaciones para Jardín Secreto
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 68000 if i <= 4 else (88000 if i <= 7 else 135000)
@@ -280,7 +275,6 @@ async def seed_database(db: AsyncSession):
             price=price,
             isAvailable=True
         ))
-    # Habitaciones para Cielo Abierto
     for i in range(1, 11):
         room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
         price = 67000 if i <= 4 else (87000 if i <= 7 else 132000)
@@ -294,23 +288,20 @@ async def seed_database(db: AsyncSession):
     db.add_all(rooms)
     await db.flush()
 
-    # Reservas (10 por alojamiento, solo para usuarios con role="client")
+    # Reservas
     reservations = []
     base_date = date(2025, 5, 1)
-    client_usernames = ["maria", "juan", "sofia", "pedro", "laura"]  # Usuarios con role="client"
+    client_usernames = ["maria", "juan", "sofia", "pedro", "laura"]
     statuses = ["confirmed", "pending", "cancelled"]
     accommodations = [hotel_poblado, hotel_tequendama, hotel_casa_luz, hotel_verde_valle, hotel_jardin_secreto, hotel_cielo_abierto]
 
     for accom in accommodations:
-        # Filtrar las habitaciones de este alojamiento
         accom_rooms = [r for r in rooms if r.accommodation_id == accom.id]
         for i in range(10):
-            # Rotar entre las primeras 10 habitaciones del alojamiento
             room = accom_rooms[i % len(accom_rooms)]
             start_date = base_date + timedelta(days=i * 7)
             end_date = start_date + timedelta(days=3)
-            # Asignar usuario rotando entre los clientes
-            client_index = (i % 5)  # Rotar entre los 5 usuarios client
+            client_index = (i % 5)
             status_index = i % 3
             guest_count = 1 if room.type_id == sencilla.id else (2 if room.type_id == doble.id else 4)
             reservations.append(Reservation(
@@ -386,9 +377,27 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     # Servicios Extra
-    breakfast = ExtraService(name="Desayuno", description="Desayuno continental", price=15000)
-    parking = ExtraService(name="Parqueadero", description="Estacionamiento privado", price=20000)
-    db.add_all([breakfast, parking])
+    breakfast = ExtraService(
+        name="Desayuno",
+        description="Desayuno continental",
+        price=15000
+    )
+    parking = ExtraService(
+        name="Parqueadero",
+        description="Estacionamiento privado",
+        price=20000
+    )
+    wifi = ExtraService(
+        name="WiFi Premium",
+        description="Internet de alta velocidad",
+        price=10000
+    )
+    spa = ExtraService(
+        name="Spa",
+        description="Sesión de spa relajante",
+        price=50000
+    )
+    db.add_all([breakfast, parking, wifi, spa])
     await db.flush()
 
     # Relación Reservation-ExtraService
@@ -400,74 +409,270 @@ async def seed_database(db: AsyncSession):
         reservation_id=reservations[1].id,
         extra_service_id=parking.id
     )
+    reservation_extra_3 = reservation_extra_service.insert().values(
+        reservation_id=reservations[2].id,
+        extra_service_id=wifi.id
+    )
+    reservation_extra_4 = reservation_extra_service.insert().values(
+        reservation_id=reservations[3].id,
+        extra_service_id=spa.id
+    )
     await db.execute(reservation_extra_1)
     await db.execute(reservation_extra_2)
+    await db.execute(reservation_extra_3)
+    await db.execute(reservation_extra_4)
+    await db.flush()
+
+    # Productos
+    tv_32 = Product(
+        name="TV LED 32 pulgadas",
+        description="Televisor LED Full HD de 32 pulgadas",
+        price=1200000.0
+    )
+    tv_40 = Product(
+        name="TV LED 40 pulgadas",
+        description="Televisor LED Full HD de 40 pulgadas",
+        price=1800000.0
+    )
+    tv_50 = Product(
+        name="TV LED 50 pulgadas",
+        description="Televisor LED 4K de 50 pulgadas",
+        price=2500000.0
+    )
+    bed_single = Product(
+        name="Cama Sencilla",
+        description="Cama sencilla de madera con acabado moderno",
+        price=800000.0
+    )
+    bed_double = Product(
+        name="Cama Doble",
+        description="Cama doble de madera con acabado moderno",
+        price=1500000.0
+    )
+    mattress_single = Product(
+        name="Colchón Sencillo",
+        description="Colchón ortopédico sencillo de alta densidad",
+        price=500000.0
+    )
+    mattress_double = Product(
+        name="Colchón Doble",
+        description="Colchón ortopédico doble de alta densidad",
+        price=900000.0
+    )
+    nightstand = Product(
+        name="Nochero",
+        description="Mesa de noche de madera con un cajón",
+        price=200000.0
+    )
+    lamp = Product(
+        name="Lámpara",
+        description="Lámpara de mesa con diseño moderno",
+        price=100000.0
+    )
+    hairdryer = Product(
+        name="Secador de Pelo",
+        description="Secador de pelo de 1800W",
+        price=150000.0
+    )
+    db.add_all([tv_32, tv_40, tv_50, bed_single, bed_double, mattress_single, mattress_double, nightstand, lamp, hairdryer])
     await db.flush()
 
     # Inventario de Habitaciones
     inventory_items = []
+    room_product_entries = []
     for room in rooms:
-        inventory_items.append(RoomInventory(
-            room_id=room.id,
-            product_name="Toallas",
-            quantity=10,
-            min_quantity=5,
-            needs_restock=False
-        ))
-        inventory_items.append(RoomInventory(
-            room_id=room.id,
-            product_name="Sábanas",
-            quantity=8,
-            min_quantity=10,
-            needs_restock=True
-        ))
+        is_single = room.type_id == sencilla.id
+        is_double = room.type_id == doble.id
+        is_family = room.type_id == familiar.id
+
+        inventory_items.extend([
+            RoomInventory(
+                room_id=room.id,
+                product_name="Secador de Pelo",
+                quantity=1,
+                min_quantity=1,
+                needs_restock=False
+            ),
+            RoomInventory(
+                room_id=room.id,
+                product_name="Lámpara",
+                quantity=1 if is_single else 2,
+                min_quantity=1 if is_single else 2,
+                needs_restock=False
+            ),
+            RoomInventory(
+                room_id=room.id,
+                product_name="Nochero",
+                quantity=1 if is_single else 2,
+                min_quantity=1 if is_single else 2,
+                needs_restock=False
+            )
+        ])
+
+        if is_single:
+            inventory_items.extend([
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="TV LED 32 pulgadas",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Cama Sencilla",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Colchón Sencillo",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                )
+            ])
+        elif is_double:
+            inventory_items.extend([
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="TV LED 40 pulgadas",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Cama Doble",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Colchón Doble",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                )
+            ])
+        elif is_family:
+            inventory_items.extend([
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="TV LED 50 pulgadas",
+                    quantity=1,
+                    min_quantity=1,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Cama Doble",
+                    quantity=2,
+                    min_quantity=2,
+                    needs_restock=False
+                ),
+                RoomInventory(
+                    room_id=room.id,
+                    product_name="Colchón Doble",
+                    quantity=2,
+                    min_quantity=2,
+                    needs_restock=False
+                )
+            ])
+
+        room_product_entries.extend([
+            room_product.insert().values(
+                room_id=room.id,
+                product_id=hairdryer.id,
+                quantity=1,
+                needs_restock=False
+            ),
+            room_product.insert().values(
+                room_id=room.id,
+                product_id=lamp.id,
+                quantity=1 if is_single else 2,
+                needs_restock=False
+            ),
+            room_product.insert().values(
+                room_id=room.id,
+                product_id=nightstand.id,
+                quantity=1 if is_single else 2,
+                needs_restock=False
+            )
+        ])
+
+        if is_single:
+            room_product_entries.extend([
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=tv_32.id,
+                    quantity=1,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=bed_single.id,
+                    quantity=1,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=mattress_single.id,
+                    quantity=1,
+                    needs_restock=False
+                )
+            ])
+        elif is_double:
+            room_product_entries.extend([
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=tv_40.id,
+                    quantity=1,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=bed_double.id,
+                    quantity=1,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=mattress_double.id,
+                    quantity=1,
+                    needs_restock=False
+                )
+            ])
+        elif is_family:
+            room_product_entries.extend([
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=tv_50.id,
+                    quantity=1,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=bed_double.id,
+                    quantity=2,
+                    needs_restock=False
+                ),
+                room_product.insert().values(
+                    room_id=room.id,
+                    product_id=mattress_double.id,
+                    quantity=2,
+                    needs_restock=False
+                )
+            ])
+
     db.add_all(inventory_items)
     await db.flush()
 
-    # Productos
-    towels = Product(
-        name="Toallas",
-        description="Toallas blancas de algodón",
-        price=5.0
-    )
-    sheets = Product(
-        name="Sábanas",
-        description="Sábanas de algodón 200 hilos",
-        price=10.0
-    )
-    pillows = Product(
-        name="Almohadas",
-        description="Almohadas de plumas",
-        price=15.0
-    )
-    db.add_all([towels, sheets, pillows])
-    await db.flush()
-
-    # Relación Room-Product
-    room_product_entries = []
-    for room in rooms:
-        room_product_entries.append(room_product.insert().values(
-            room_id=room.id,
-            product_id=towels.id,
-            quantity=5,
-            needs_restock=False
-        ))
-        room_product_entries.append(room_product.insert().values(
-            room_id=room.id,
-            product_id=sheets.id,
-            quantity=2,
-            needs_restock=True
-        ))
-        if room.type_id == familiar.id:  # Habitaciones familiares también tienen almohadas
-            room_product_entries.append(room_product.insert().values(
-                room_id=room.id,
-                product_id=pillows.id,
-                quantity=4,
-                needs_restock=False
-            ))
     for entry in room_product_entries:
         await db.execute(entry)
     await db.flush()
 
     await db.commit()
-    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and products!")
+    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and fixed inventory items!")
