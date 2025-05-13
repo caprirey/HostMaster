@@ -19,7 +19,7 @@ async def seed_database(db: AsyncSession):
     # Usuarios
     admin_user = UserTable(
         username="admin",
-        email="admin@hotelescolombia.com",
+        email="admin@yopmail.com",
         full_name="Carlos Andrés Gómez",
         firstname="Carlos",
         lastname="Gómez",
@@ -27,11 +27,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("admin123"),
         disabled=False,
         role="admin",
-        image="static/images/admin.jpg"
+        image="static/images/admin.jpg",
+        phone_number="+573183894217"
     )
     user1 = UserTable(
         username="maria",
-        email="maria.lopez@hotelescolombia.com",
+        email="maria.lopez@yopmail.com",
         full_name="María Fernanda López",
         firstname="María",
         lastname="López",
@@ -39,11 +40,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("maria"),
         disabled=False,
         role="client",
-        image="static/images/maria.jpg"
+        image="static/images/maria.jpg",
+        phone_number="+573112512612"
     )
     employee = UserTable(
         username="camilo",
-        email="camilo@hotelescolombia.com",
+        email="camilo@yopmail.com",
         full_name="Camilo Prieto",
         firstname="Camilo",
         lastname="Prieto",
@@ -51,11 +53,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("camilo"),
         disabled=False,
         role="employee",
-        image="static/images/camilo.jpg"
+        image="static/images/camilo.jpg",
+        phone_number="+573044315484"
     )
     user2 = UserTable(
         username="juan",
-        email="juan.perez@hotelescolombia.com",
+        email="juan.perez@yopmail.com",
         full_name="Juan David Pérez",
         firstname="Juan",
         lastname="Pérez",
@@ -63,11 +66,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("juan123"),
         disabled=False,
         role="client",
-        image="static/images/juan.jpg"
+        image="static/images/juan.jpg",
+        phone_number="+573044315484"
     )
     user3 = UserTable(
         username="sofia",
-        email="sofia.garcia@hotelescolombia.com",
+        email="sofia.garcia@yopmail.com",
         full_name="Sofía Alejandra García",
         firstname="Sofía",
         lastname="García",
@@ -75,11 +79,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("sofia123"),
         disabled=False,
         role="client",
-        image="static/images/sofia.jpg"
+        image="static/images/sofia.jpg",
+        phone_number="+573044315484"
     )
     user4 = UserTable(
         username="pedro",
-        email="pedro.martinez@hotelescolombia.com",
+        email="pedro.martinez@yopmail.com",
         full_name="Pedro Antonio Martínez",
         firstname="Pedro",
         lastname="Martínez",
@@ -87,11 +92,12 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("pedro123"),
         disabled=False,
         role="client",
-        image="static/images/pedro.jpg"
+        image="static/images/pedro.jpg",
+        phone_number="+573044315484"
     )
     user5 = UserTable(
         username="laura",
-        email="laura.rodriguez@hotelescolombia.com",
+        email="laura.rodriguez@yopmail.com",
         full_name="Laura Valentina Rodríguez",
         firstname="Laura",
         lastname="Rodríguez",
@@ -99,7 +105,8 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("laura123"),
         disabled=False,
         role="client",
-        image="static/images/laura.jpg"
+        image="static/images/laura.jpg",
+        phone_number="+573044315484"
     )
     db.add_all([admin_user, user1, employee, user2, user3, user4, user5])
     await db.flush()

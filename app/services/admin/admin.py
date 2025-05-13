@@ -63,7 +63,8 @@ async def create_user_service(db: AsyncSession, user_data: UserCreate, image_fil
         firstname=user_data.firstname,
         lastname=user_data.lastname,
         document_number=user_data.document_number,
-        image=image_path
+        image=image_path,
+        phone_number=user_data.phone_number
     )
 
     if user_data.accommodation_ids is not None:
@@ -96,6 +97,7 @@ async def create_user_service(db: AsyncSession, user_data: UserCreate, image_fil
         "lastname": new_user.lastname,
         "document_number": new_user.document_number,
         "image": new_user.image,
+        "phone_number": new_user.phone_number,
         "reviews": new_user.reviews or [],
         "accommodation_ids": [a.id for a in new_user.accommodations] if new_user.accommodations else []
     }
@@ -121,6 +123,7 @@ async def get_users_service(db: AsyncSession) -> List[User]:
             "lastname": user.lastname,
             "document_number": user.document_number,
             "image": user.image,
+            "phone_number": user.phone_number,
             "reviews": user.reviews or [],
             "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
         }) for user in users
@@ -148,6 +151,7 @@ async def get_user_service(db: AsyncSession, username: str) -> User:
         "lastname": user.lastname,
         "document_number": user.document_number,
         "image": user.image,
+        "phone_number": user.phone_number,
         "reviews": user.reviews or [],
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }
@@ -183,6 +187,7 @@ async def get_users_by_role_service(db: AsyncSession, role: str) -> List[User]:
             "lastname": user.lastname,
             "document_number": user.document_number,
             "image": user.image,
+            "phone_number": user.phone_number,
             "reviews": user.reviews or [],
             "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
         }) for user in users
@@ -243,6 +248,8 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
         user.document_number = user_data.document_number
     if image_path is not None:
         user.image = image_path
+    if user_data.phone_number is not None:
+        user.phone_number = user_data.phone_number
     if user_data.accommodation_ids is not None:
         accommodations = await db.execute(
             select(Accommodation).where(Accommodation.id.in_(user_data.accommodation_ids))
@@ -269,6 +276,7 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
         "lastname": user.lastname,
         "document_number": user.document_number,
         "image": user.image,
+        "phone_number": user.phone_number,
         "reviews": user.reviews or [],
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }

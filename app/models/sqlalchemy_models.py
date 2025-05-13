@@ -17,6 +17,7 @@ class UserTable(Base):
     lastname = Column(String, nullable=False)  # Nuevo campo: apellido
     document_number = Column(String, nullable=False, unique=True)  # Nuevo campo: número de documento, único
     image = Column(String, nullable=True)  # Nuevo campo: URL o ruta de la imagen
+    phone_number = Column(String, nullable=False)
     reservations = relationship("Reservation", back_populates="user")
     reviews = relationship("Review", back_populates="user")
     accommodations = relationship(

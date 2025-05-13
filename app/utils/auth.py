@@ -45,6 +45,7 @@ async def get_user(db: AsyncSession, username: str):
             lastname=user.lastname,
             document_number=user.document_number,
             image=user.image,
+            phone_number=user.phone_number,
             reviews=user.reviews,
             accommodation_ids=[a.id for a in user.accommodations] if user.accommodations else []
         )

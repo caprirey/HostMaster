@@ -21,6 +21,7 @@ class UserBase(BaseModel):
     lastname: str  # Nuevo campo: apellido
     document_number: str  # Nuevo campo: número de documento
     image: Optional[str] = None  # Nuevo campo: URL o ruta de la imagen
+    phone_number: str
 
 class User(UserBase):
     reviews: List["Review"] = []  # Nueva relación
@@ -41,6 +42,7 @@ class UserCreate(BaseModel):
     lastname: str  # Nuevo campo
     document_number: str  # Nuevo campo
     image: Optional[str] = None  # Nuevo campo
+    phone_number: str
 
 class UserUpdate(BaseModel):
     email: Optional[str] = None
@@ -52,6 +54,7 @@ class UserUpdate(BaseModel):
     lastname: Optional[str] = None  # Nuevo campo
     document_number: Optional[str] = None  # Nuevo campo
     image: Optional[str] = None  # Nuevo campo
+    phone_number: Optional[str] = None
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

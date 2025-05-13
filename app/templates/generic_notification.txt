@@ -1,0 +1,7 @@
+Estimado/a cliente,
+
+{{ message }}
+
+Atentamente,
+HostMaster API
+support@hotelescolombia.com

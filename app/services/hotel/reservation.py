@@ -4,9 +4,12 @@ from sqlalchemy.future import select
 from app.models.pydantic_models import Reservation, ReservationBase, ReservationUpdate
 from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable, Accommodation
 from sqlalchemy.orm import selectinload
+from app.utils.email import send_reservation_confirmation
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str, current_role: str) -> Reservation:
-
     if current_role == "client":
         if reservation_data.user_username is not None and reservation_data.user_username != current_username:
             raise HTTPException(
@@ -74,6 +77,14 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
                 detail=f"Room {reservation_data.room_id} is already booked from {existing.start_date} to {existing.end_date}"
             )
 
+    # Consultar el alojamiento para el correo
+    result = await db.execute(
+        select(Accommodation).where(Accommodation.id == reservation_data.accommodation_id)
+    )
+    accommodation = result.scalar_one_or_none()
+    if not accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+
     # Crear la nueva reservación con el username determinado
     reservation = ReservationTable(
         user_username=target_username,
@@ -95,6 +106,22 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
         .options(selectinload(ReservationTable.extra_services))
     )
     reservation = result.scalar_one()
+
+    # Enviar correo de confirmación si el usuario tiene email
+    if user.email:
+        reservation_details = {
+            "reservation_id": reservation.id,
+            "accommodation_name": accommodation.name,
+            "room_number": room.number,
+            "start_date": reservation.start_date.strftime("%Y-%m-%d"),
+            "end_date": reservation.end_date.strftime("%Y-%m-%d"),
+            "guest_count": reservation.guest_count,
+            "status": reservation.status
+        }
+        success = await send_reservation_confirmation(user.email, reservation_details)
+        if not success:
+            logger.warning(f"No se pudo enviar el correo de confirmación a {user.email}")
+
     return Reservation.model_validate(reservation)
 
 async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]:
@@ -106,13 +133,13 @@ async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]
     if user.role == "admin" or user.role == "employee":
         result = await db.execute(
             select(ReservationTable)
-            .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
+            .options(selectinload(ReservationTable.extra_services))
         )
     elif user.role == "client":
         result = await db.execute(
             select(ReservationTable)
             .where(ReservationTable.user_username == username)
-            .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
+            .options(selectinload(ReservationTable.extra_services))
         )
     else:
         raise HTTPException(status_code=403, detail="Invalid role")
@@ -124,15 +151,13 @@ async def update_reservation(
         db: AsyncSession,
         reservation_id: int,
         reservation_update: ReservationUpdate,
-        username: str  # Username del usuario autenticado
+        username: str
 ) -> Reservation:
-    # Verificar que el usuario autenticado exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar la reserva existente con su habitación
     result = await db.execute(
         select(ReservationTable)
         .where(ReservationTable.id == reservation_id)
@@ -145,11 +170,9 @@ async def update_reservation(
     if not db_reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    # Verificar permisos: solo el creador o un admin puede actualizar
-    if (user.role != "admin" or user.role != "employee") and db_reservation.user_username != username:
+    if (user.role != "admin" and user.role != "employee") and db_reservation.user_username != username:
         raise HTTPException(status_code=403, detail="Not authorized to update this reservation")
 
-    # Validar el nuevo user_username si se proporciona
     if reservation_update.user_username is not None:
         result = await db.execute(
             select(UserTable).where(UserTable.username == reservation_update.user_username)
@@ -161,11 +184,9 @@ async def update_reservation(
                 detail=f"User {reservation_update.user_username} not found"
             )
 
-    # Determinar el room_id y accommodation_id a validar
     new_room_id = reservation_update.room_id if reservation_update.room_id is not None else db_reservation.room_id
     new_accommodation_id = reservation_update.accommodation_id if reservation_update.accommodation_id is not None else db_reservation.accommodation_id
 
-    # Consultar la habitación y su tipo para obtener max_guests
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.id == new_room_id)
@@ -177,14 +198,12 @@ async def update_reservation(
     if not room.isAvailable:
         raise HTTPException(status_code=400, detail="Room is not available")
 
-    # Validar que el accommodation_id coincida con el de la habitación
     if room.accommodation_id != new_accommodation_id:
         raise HTTPException(
             status_code=400,
             detail="The accommodation_id does not match the room's accommodation"
         )
 
-    # Validar guest_count si se proporciona
     if reservation_update.guest_count is not None:
         if reservation_update.guest_count <= 0:
             raise HTTPException(status_code=400, detail="Guest count must be greater than 0")
@@ -194,14 +213,12 @@ async def update_reservation(
                 detail=f"Guest count ({reservation_update.guest_count}) exceeds maximum allowed ({room.room_type.max_guests}) for this room type"
             )
 
-    # Validar fechas si se proporcionan
     new_start_date = reservation_update.start_date if reservation_update.start_date is not None else db_reservation.start_date
     new_end_date = reservation_update.end_date if reservation_update.end_date is not None else db_reservation.end_date
     if reservation_update.start_date is not None or reservation_update.end_date is not None:
         if new_start_date >= new_end_date:
             raise HTTPException(status_code=400, detail="Start date must be before end date")
 
-    # Validar superposición de fechas si se cambia room_id, start_date o end_date
     if (reservation_update.room_id is not None or
             reservation_update.start_date is not None or
             reservation_update.end_date is not None):
@@ -218,7 +235,6 @@ async def update_reservation(
                     detail=f"Room {new_room_id} is already booked from {existing.start_date} to {existing.end_date}"
                 )
 
-    # Actualizar los campos proporcionados
     update_data = reservation_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_reservation, key, value)
@@ -228,26 +244,22 @@ async def update_reservation(
     return Reservation.model_validate(db_reservation)
 
 async def delete_reservation(db: AsyncSession, reservation_id: int, username: str) -> None:
-    # Verificar que el usuario exista
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Buscar la reserva existente
     result = await db.execute(
         select(ReservationTable)
         .where(ReservationTable.id == reservation_id)
-        .options(selectinload(ReservationTable.extra_services))  # Cargar relación extra_services
+        .options(selectinload(ReservationTable.extra_services))
     )
     db_reservation = result.scalar_one_or_none()
     if not db_reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    # Verificar permisos: solo el creador de la reserva o un admin puede eliminar
-    if (user.role != "admin" or user.role != "employee") and db_reservation.user_username != username:
+    if (user.role != "admin" and user.role != "employee") and db_reservation.user_username != username:
         raise HTTPException(status_code=403, detail="Not authorized to delete this reservation")
 
-    # Eliminar la reserva
     await db.delete(db_reservation)
     await db.commit()

@@ -78,7 +78,8 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate, image_f
         firstname=user_data.firstname,
         lastname=user_data.lastname,
         document_number=user_data.document_number,
-        image=image_path
+        image=image_path,
+        phone_number=user_data.phone_number
     )
 
     # Asignar alojamientos solo si se proporcionan explícitamente
@@ -120,6 +121,7 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate, image_f
         "lastname": new_user.lastname,
         "document_number": new_user.document_number,
         "image": new_user.image,
+        "phone_number": new_user.phone_number,
         "reviews": new_user.reviews,
         "accommodation_ids": [a.id for a in new_user.accommodations] if new_user.accommodations else []
     }
@@ -226,6 +228,7 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
         "lastname": user.lastname,
         "document_number": user.document_number,
         "image": user.image,
+        "phone_number": user.phone_number,
         "reviews": user.reviews,
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }
@@ -269,6 +272,7 @@ async def change_password_service(db: AsyncSession, username: str, password_data
         "lastname": user.lastname,
         "document_number": user.document_number,
         "image": user.image,
+        "phone_number": user.phone_number,
         "reviews": user.reviews,
         "accommodation_ids": [a.id for a in user.accommodations] if user.accommodations else []
     }

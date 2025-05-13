@@ -13,3 +13,13 @@ DATABASE_URL = "sqlite+aiosqlite:///HostMasterV1.db"
 STATIC_DIR = "static"
 IMAGES_DIR = "images"  # Subdirectorio dentro de STATIC_DIR
 BASE_URL = "http://0.0.0.0:8000"  # URL base para acceder a los archivos está
+
+# Configuración de correo electrónico (Gmail)
+MAIL_USERNAME = "ncprietoreyes@gmail.com"  # Tu dirección de Gmail
+MAIL_PASSWORD = ""  # Contraseña de aplicación generada
+MAIL_FROM = "HostMasterApp@gmail.com"
+MAIL_PORT = 587
+MAIL_SERVER = "smtp.gmail.com"
+MAIL_FROM_NAME = "HostMaster API"
+MAIL_STARTTLS = True
+MAIL_SSL_TLS = False

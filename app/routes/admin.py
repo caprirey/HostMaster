@@ -57,6 +57,7 @@ async def create_user_admin(
         firstname: Annotated[str, Form(description="Nombre del usuario")],
         lastname: Annotated[str, Form(description="Apellido del usuario")],
         document_number: Annotated[str, Form(description="Número de documento único")],
+        phone_number: Annotated[str, Form(description="Número de teléfono (formato: +573001234567)")],
         db: Annotated[AsyncSession, Depends(get_db)],
         admin_user: Annotated[User, Depends(get_admin_user)],
         email: Annotated[str | None, Form(description="Correo electrónico (opcional)")] = None,
@@ -88,7 +89,8 @@ async def create_user_admin(
         firstname=firstname,
         lastname=lastname,
         document_number=document_number,
-        image=None
+        image=None,
+        phone_number=phone_number
     )
 
     return await create_user_service(db, user_data, image)
@@ -180,6 +182,7 @@ async def update_user_admin(
         role: Annotated[str | None, Form(description="Rol del usuario (opcional)")] = None,
         password: Annotated[str | None, Form(description="Nueva contraseña (opcional)")] = None,
         accommodation_ids: Annotated[str | None, Form(description="JSON con IDs de alojamientos (opcional)")] = None,
+        phone_number: Annotated[str | None, Form(description="Número de teléfono (opcional, formato: +573001234567)")] = None,  # Añadido
         image: Annotated[UploadFile | None, File(description="Imagen de perfil (opcional, JPG, JPEG, PNG). Omita este campo si no se sube un archivo.")] = None
 ):
     print(f"Updating user {username} by user: {auth_user.username}, role: {auth_user.role}")
@@ -204,6 +207,7 @@ async def update_user_admin(
         role=role,
         password=password,
         accommodation_ids=accommodation_ids_list,
+        phone_number=phone_number,  # Añadido
         image=None
     )
 
