@@ -1,9 +1,10 @@
+import logging
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-import os
 from app.database.db import engine, init_db, get_db
 from app.routes.auth import router as auth_router
 from app.routes.hotel import router as hotel_router
@@ -11,14 +12,33 @@ from app.routes.admin import router as admin_router
 from app.seeds.seeder import seed_database
 from app.config.settings import STATIC_DIR, IMAGES_DIR
 
-# Crear directorios estáticos si no existen
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Validar y configurar directorios estáticos
 STATIC_PATH = STATIC_DIR
 IMAGES_PATH = os.path.join(STATIC_DIR, IMAGES_DIR)
 
-if not os.path.exists(STATIC_PATH):
-    os.makedirs(STATIC_PATH)
-if not os.path.exists(IMAGES_PATH):
-    os.makedirs(IMAGES_PATH)
+# Crear directorios estáticos con permisos adecuados
+for path in [STATIC_PATH, IMAGES_PATH]:
+    if not os.path.exists(path):
+        os.makedirs(path, mode=0o755)
+        logger.info(f"Created directory {path} with permissions 755")
+    else:
+        # Asegurar permisos correctos
+        os.chmod(path, 0o755)
+        logger.info(f"Set permissions 755 for existing directory {path}")
+
+# Verificar que el directorio static/ contiene archivos esperados
+try:
+    static_files = os.listdir(STATIC_PATH)
+    logger.info(f"Static directory {STATIC_PATH} contains: {static_files}")
+    if os.path.exists(IMAGES_PATH):
+        image_files = os.listdir(IMAGES_PATH)
+        logger.info(f"Images directory {IMAGES_PATH} contains: {image_files}")
+except Exception as e:
+    logger.error(f"Error accessing static directory {STATIC_PATH}: {str(e)}")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -50,6 +70,7 @@ app.add_middleware(
 
 # Montar el directorio estático
 app.mount("/static", StaticFiles(directory=STATIC_PATH), name="static")
+logger.info(f"Mounted static directory at /static, serving from {STATIC_PATH}")
 
 # Incluir routers
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
