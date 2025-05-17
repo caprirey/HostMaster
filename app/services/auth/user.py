@@ -4,12 +4,11 @@ from fastapi import HTTPException, status, UploadFile
 from app.models.pydantic_models import User, UserCreate, UserInDB, UserUpdate, ChangePasswordRequest
 from app.models.sqlalchemy_models import UserTable, Accommodation
 from app.utils.auth import get_password_hash, authenticate_user as auth_user, create_access_token
-from app.config.settings import ACCESS_TOKEN_EXPIRE_DELTA
+from app.config.settings import ACCESS_TOKEN_EXPIRE_DELTA, STATIC_DIR, USERS_DIR as IMAGES_DIR
 from sqlalchemy.orm import selectinload
 from app.utils.auth import get_password_hash, verify_password
 import os
 import uuid
-from pathlib import Path
 
 async def register_user_service(db: AsyncSession, user_data: UserCreate, image_file: UploadFile | None = None) -> User:
     # Validar si el username ya existe
@@ -57,9 +56,9 @@ async def register_user_service(db: AsyncSession, user_data: UserCreate, image_f
 
         # Generar un nombre único para la imagen
         unique_filename = f"user_{user_data.document_number}_{uuid.uuid4().hex}{file_extension}"
-        image_dir = Path("static/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-        image_path = f"static/images/{unique_filename}"
+        upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)  # Construir ruta con os.path.join
+        os.makedirs(upload_dir, exist_ok=True)  # Crear directorio si no existe
+        image_path = os.path.join(STATIC_DIR, IMAGES_DIR, unique_filename)  # Ruta completa de la imagen
 
         # Guardar la imagen
         with open(image_path, "wb") as f:
@@ -167,9 +166,9 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
 
         # Generar un nombre único para la imagen
         unique_filename = f"user_{user_data.document_number or user.document_number}_{uuid.uuid4().hex}{file_extension}"
-        image_dir = Path("static/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-        image_path = f"static/images/{unique_filename}"
+        upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)  # Construir ruta con os.path.join
+        os.makedirs(upload_dir, exist_ok=True)  # Crear directorio si no existe
+        image_path = os.path.join(STATIC_DIR, IMAGES_DIR, unique_filename)  # Ruta completa de la imagen
 
         # Guardar la imagen
         with open(image_path, "wb") as f:

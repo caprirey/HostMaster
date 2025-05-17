@@ -160,9 +160,9 @@ class Review(Base):
     accommodation = relationship("Accommodation", back_populates="reviews")
     user = relationship("UserTable", back_populates="reviews")
 
-    __table_args__ = (
-        UniqueConstraint('accommodation_id', 'user_username', name='uix_accommodation_user'),
-    )
+   # __table_args__ = (
+   #     UniqueConstraint('accommodation_id', 'user_username', name='uix_accommodation_user'),
+   # )
 
     # Nuevo modelo RoomInventory
 class RoomInventory(Base):

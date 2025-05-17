@@ -6,9 +6,9 @@ from fastapi import HTTPException, status, UploadFile
 from app.models.pydantic_models import User, UserCreate, UserUpdate
 from app.models.sqlalchemy_models import UserTable, Accommodation
 from app.utils.auth import get_password_hash
+from app.config.settings import STATIC_DIR, USERS_DIR as IMAGES_DIR  # Añadido STATIC_DIR, IMAGES_DIR
 import os
 import uuid
-from pathlib import Path
 from sqlalchemy import func
 
 # Crear usuario (Create)
@@ -44,9 +44,9 @@ async def create_user_service(db: AsyncSession, user_data: UserCreate, image_fil
             )
 
         unique_filename = f"user_{user_data.document_number}_{uuid.uuid4().hex}{file_extension}"
-        image_dir = Path("static/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-        image_path = f"static/images/{unique_filename}"
+        upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)  # Construir ruta con os.path.join
+        os.makedirs(upload_dir, exist_ok=True)  # Crear directorio si no existe
+        image_path = os.path.join(STATIC_DIR, IMAGES_DIR, unique_filename)  # Ruta completa de la imagen
 
         with open(image_path, "wb") as f:
             content = await image_file.read()
@@ -216,9 +216,9 @@ async def update_user_service(db: AsyncSession, username: str, user_data: UserUp
             )
 
         unique_filename = f"user_{user_data.document_number or user.document_number}_{uuid.uuid4().hex}{file_extension}"
-        image_dir = Path("static/images")
-        image_dir.mkdir(parents=True, exist_ok=True)
-        image_path = f"static/images/{unique_filename}"
+        upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)  # Construir ruta con os.path.join
+        os.makedirs(upload_dir, exist_ok=True)  # Crear directorio si no existe
+        image_path = os.path.join(STATIC_DIR, IMAGES_DIR, unique_filename)  # Ruta completa de la imagen
 
         with open(image_path, "wb") as f:
             content = await image_file.read()

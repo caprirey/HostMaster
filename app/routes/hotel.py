@@ -346,7 +346,7 @@ async def upload_multiple_images_route(
         files: List[UploadFile] = File(...),
 ):
     """Upload multiple images for an accommodation or room."""
-    return await room.upload_images(db, request, files, current_user.username)
+    return await images.upload_images(db, request, files, current_user.username)
 
 @router.delete("/images", status_code=status.HTTP_204_NO_CONTENT, tags=["Images"], summary="Delete images")
 async def delete_images_route(

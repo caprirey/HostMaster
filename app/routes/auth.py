@@ -35,6 +35,7 @@ async def register_user(
         # accommodation_ids: Annotated[str | None, Form()] = None,
         # role: Annotated[str | None, Form()] = "client",
         image: Annotated[UploadFile | None, File()] = None,
+        phone_number: Annotated[str | None, Form()] = None
 ):
     """Register a new user with optional image and accommodation associations."""
     # Convert accommodation_ids from JSON string to list if provided
@@ -61,7 +62,8 @@ async def register_user(
         firstname=firstname,
         lastname=lastname,
         document_number=document_number,
-        image=None  # Image is processed in the service
+        image=None,  # Image is processed in the service
+        phone_number=phone_number
     )
 
     return await register_user_service(db, user_data, image)
@@ -79,6 +81,7 @@ async def update_user(
         # password: Annotated[str | None, Form()] = None,
         # accommodation_ids: Annotated[str | None, Form()] = None,
         image: Annotated[UploadFile | None, File()] = None,
+        phone_number: Annotated[str | None, Form()] = None,
 ):
     """Update the current authenticated user's details, including optional image."""
     # Convert accommodation_ids from JSON string to list if provided
@@ -104,7 +107,8 @@ async def update_user(
     #    role=role,
     #     password=password,
     #    accommodation_ids=accommodation_ids_list,
-        image=None  # Image is processed in the service
+        image=None,  # Image is processed in the service
+        phone_number=phone_number
     )
 
     return await update_user_service(db, current_user.username, user_data, image)

@@ -12,6 +12,7 @@ DATABASE_URL = "sqlite+aiosqlite:///HostMasterV1.db"
 # Configuración de archivos estáticos
 STATIC_DIR = "static"
 IMAGES_DIR = "images"  # Subdirectorio dentro de STATIC_DIR
+USERS_DIR = "users"
 BASE_URL = "http://0.0.0.0:8000"  # URL base para acceder a los archivos está
 
 # Configuración de correo electrónico (Gmail)

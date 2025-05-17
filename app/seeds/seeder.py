@@ -1,4 +1,5 @@
 import csv
+import os  # Añadido para os.path.join
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -8,7 +9,10 @@ from app.models.sqlalchemy_models import (
     Image, Review, ExtraService, reservation_extra_service, RoomInventory, Product, room_product
 )
 from app.utils.auth import get_password_hash
+from app.config.settings import STATIC_DIR, IMAGES_DIR  # Añadido para rutas configurables
 from datetime import date, timedelta, datetime
+from random import randint  # Añadido para fechas aleatorias
+
 
 async def seed_database(db: AsyncSession):
     result = await db.execute(select(UserTable))
@@ -27,7 +31,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("admin123"),
         disabled=False,
         role="admin",
-        image="static/images/admin.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_admin.png"),  # Ajustado con os.path.join
         phone_number="+573183894217"
     )
     user1 = UserTable(
@@ -40,7 +44,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("maria"),
         disabled=False,
         role="client",
-        image="static/images/maria.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
         phone_number="+573112512612"
     )
     employee = UserTable(
@@ -53,7 +57,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("camilo"),
         disabled=False,
         role="employee",
-        image="static/images/camilo.jpg",
+        image=os.path.join(STATIC_DIR, IMAGES_DIR, "user_hombre.jpg"),  # Ajustado
         phone_number="+573044315484"
     )
     user2 = UserTable(
@@ -66,7 +70,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("juan123"),
         disabled=False,
         role="client",
-        image="static/images/juan.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg"),  # Ajustado
         phone_number="+573044315484"
     )
     user3 = UserTable(
@@ -79,7 +83,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("sofia123"),
         disabled=False,
         role="client",
-        image="static/images/sofia.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
         phone_number="+573044315484"
     )
     user4 = UserTable(
@@ -92,7 +96,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("pedro123"),
         disabled=False,
         role="client",
-        image="static/images/pedro.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg"),  # Ajustado
         phone_number="+573044315484"
     )
     user5 = UserTable(
@@ -105,7 +109,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("laura123"),
         disabled=False,
         role="client",
-        image="static/images/laura.jpg",
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
         phone_number="+573044315484"
     )
     db.add_all([admin_user, user1, employee, user2, user3, user4, user5])
@@ -206,19 +210,8 @@ async def seed_database(db: AsyncSession):
     await db.execute(
         insert(Accommodation.__table__.metadata.tables['user_accommodation']),
         [
-            {"user_username": "admin", "accommodation_id": hotel_poblado.id},
-            {"user_username": "maria", "accommodation_id": hotel_tequendama.id},
             {"user_username": "camilo", "accommodation_id": hotel_poblado.id},
-            {"user_username": "admin", "accommodation_id": hotel_casa_luz.id},
-            {"user_username": "maria", "accommodation_id": hotel_verde_valle.id},
             {"user_username": "camilo", "accommodation_id": hotel_jardin_secreto.id},
-            {"user_username": "admin", "accommodation_id": hotel_cielo_abierto.id},
-            {"user_username": "juan", "accommodation_id": hotel_poblado.id},
-            {"user_username": "sofia", "accommodation_id": hotel_tequendama.id},
-            {"user_username": "pedro", "accommodation_id": hotel_casa_luz.id},
-            {"user_username": "laura", "accommodation_id": hotel_verde_valle.id},
-            {"user_username": "juan", "accommodation_id": hotel_jardin_secreto.id},
-            {"user_username": "sofia", "accommodation_id": hotel_cielo_abierto.id}
         ]
     )
     await db.flush()
@@ -325,61 +318,209 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     # Imágenes
-    image_1 = Image(url="static/images/hotel_poblado.jpg", accommodation_id=hotel_poblado.id)
-    image_2 = Image(url="static/images/room_101.jpg", room_id=rooms[0].id)
-    image_3 = Image(url="static/images/hotel_tequendama.jpg", accommodation_id=hotel_tequendama.id)
-    image_4 = Image(url="static/images/hotel_casa_luz.jpg", accommodation_id=hotel_casa_luz.id)
-    image_5 = Image(url="static/images/hotel_verde_valle.jpg", accommodation_id=hotel_verde_valle.id)
-    image_6 = Image(url="static/images/hotel_jardin_secreto.jpg", accommodation_id=hotel_jardin_secreto.id)
-    image_7 = Image(url="static/images/hotel_cielo_abierto.jpg", accommodation_id=hotel_cielo_abierto.id)
-    db.add_all([image_1, image_2, image_3, image_4, image_5, image_6, image_7])
+    images = []
+
+    # Imágenes para alojamientos
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_0.jpg"), accommodation_id=hotel_poblado.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_1.jpg"), accommodation_id=hotel_tequendama.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_2.jpg"), accommodation_id=hotel_casa_luz.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_3.jpg"), accommodation_id=hotel_verde_valle.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_4.jpg"), accommodation_id=hotel_jardin_secreto.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_5.jpg"), accommodation_id=hotel_cielo_abierto.id))
+
+    # Imágenes para habitaciones
+    sencilla_images = [
+        "habitacion_sencilla_0.jpg",
+        "habitacion_sencilla_1.jpg",
+        "habitacion_sencilla_2.jpg",
+        "habitacion_sencilla_3.jpg"
+    ]
+    doble_images = [
+        "habitacion_doble_0.jpg",
+        "habitacion_doble_1.jpg",
+        "habitacion_doble_2.jpg",
+        "habitacion_doble_3.jpg"
+    ]
+    familiar_images = [
+        "habitacion_familiar_0.jpg",
+        "habitacion_familiar_1.jpg",
+        "habitacion_familiar_2.jpg",
+        "habitacion_familiar_3.jpg"
+    ]
+
+    for accom in accommodations:
+        accom_rooms = [r for r in rooms if r.accommodation_id == accom.id]
+        sencilla_rooms = [r for r in accom_rooms if r.type_id == sencilla.id]  # 4 habitaciones
+        doble_rooms = [r for r in accom_rooms if r.type_id == doble.id]        # 3 habitaciones
+        familiar_rooms = [r for r in accom_rooms if r.type_id == familiar.id]  # 3 habitaciones
+
+        # Asignar imágenes a habitaciones sencillas
+        for i, room in enumerate(sencilla_rooms):
+            image_name = sencilla_images[i % len(sencilla_images)]  # Ciclo entre las 4 imágenes
+            images.append(Image(
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                room_id=room.id
+            ))
+
+        # Asignar imágenes a habitaciones dobles
+        for i, room in enumerate(doble_rooms):
+            image_name = doble_images[i % len(doble_images)]  # Ciclo entre las 4 imágenes, pero solo 3 usadas
+            images.append(Image(
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                room_id=room.id
+            ))
+
+        # Asignar imágenes a habitaciones familiares
+        for i, room in enumerate(familiar_rooms):
+            image_name = familiar_images[i % len(familiar_images)]  # Ciclo entre las 4 imágenes, pero solo 3 usadas
+            images.append(Image(
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                room_id=room.id
+            ))
+
+    db.add_all(images)
     await db.flush()
 
-    # Reseñas
     reviews = [
+        # Hotel El Poblado Plaza (Medellín, lujo)
         Review(
             accommodation_id=hotel_poblado.id,
-            user_username="admin",
+            user_username="maria",
             rating=5,
-            comment="Excelente servicio y ubicación",
-            created_at=datetime.utcnow()
+            comment="Una experiencia de lujo increíble. Las instalaciones son modernas y el personal súper atento. ¡Volveré!",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
+        ),
+        Review(
+            accommodation_id=hotel_poblado.id,
+            user_username="sofia",
+            rating=4,
+            comment="Habitaciones elegantes y ubicación perfecta en El Poblado, pero el desayuno podría tener más variedad.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
+        ),
+        Review(
+            accommodation_id=hotel_poblado.id,
+            user_username="sofia",
+            rating=3,
+            comment="Buen hotel, pero el ruido de la calle por la noche fue molesto. El servicio es excelente.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
+
+        # Hotel Tequendama (Bogotá, histórico)
+        Review(
+            accommodation_id=hotel_tequendama.id,
+            user_username="juan",
+            rating=5,
+            comment="Un clásico con mucho encanto. La arquitectura histórica y el servicio impecable hicieron mi estancia memorable.",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
         ),
         Review(
             accommodation_id=hotel_tequendama.id,
-            user_username="maria",
+            user_username="laura",
             rating=4,
-            comment="Buen hotel, pero el wifi podría mejorar",
-            created_at=datetime.utcnow()
+            comment="Gran experiencia en un hotel icónico. El wifi es un poco lento, pero el personal lo compensa con amabilidad.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
+        ),
+        Review(
+            accommodation_id=hotel_tequendama.id,
+            user_username="admin",
+            rating=4,
+            comment="Ubicación céntrica y habitaciones cómodas. Algunas áreas necesitan renovación, pero el ambiente es único.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
+
+        # Casa de la Luz (Cartagena, boutique con vistas al mar)
+        Review(
+            accommodation_id=hotel_casa_luz.id,
+            user_username="pedro",
+            rating=5,
+            comment="Vistas al mar espectaculares y un ambiente íntimo. El desayuno en la terraza fue lo mejor. ¡Recomendado!",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
         ),
         Review(
             accommodation_id=hotel_casa_luz.id,
-            user_username="camilo",
+            user_username="maria",
+            rating=4,
+            comment="Hotel boutique encantador con excelente ubicación. El aire acondicionado en mi habitación era algo ruidoso.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
+        ),
+        Review(
+            accommodation_id=hotel_casa_luz.id,
+            user_username="juan",
+            rating=4,
+            comment="El diseño del hotel es hermoso y el personal muy atento. El estacionamiento es limitado, pero manejable.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
+
+        # Verde Valle (Cali, ecológico)
+        Review(
+            accommodation_id=hotel_verde_valle.id,
+            user_username="sofia",
             rating=5,
-            comment="Vista espectacular y atención impecable",
-            created_at=datetime.utcnow()
+            comment="Un oasis ecológico en Cali. Las áreas verdes y la sostenibilidad del hotel me encantaron. ¡Súper relajante!",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
         ),
         Review(
             accommodation_id=hotel_verde_valle.id,
-            user_username="admin",
+            user_username="juan",
             rating=4,
-            comment="Ambiente relajante, ideal para descansar",
-            created_at=datetime.utcnow()
+            comment="Ambiente tranquilo y compromiso con el medio ambiente. La señal wifi en las habitaciones es débil.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
+        ),
+        Review(
+            accommodation_id=hotel_verde_valle.id,
+            user_username="laura",
+            rating=3,
+            comment="Concepto ecológico interesante, pero el agua caliente en la ducha era inconsistente. Personal muy amable.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
+
+        # Jardín Secreto (Medellín, tranquilo con jardines)
+        Review(
+            accommodation_id=hotel_jardin_secreto.id,
+            user_username="pedro",
+            rating=5,
+            comment="Los jardines son un sueño y el ambiente es perfecto para desconectar. El mejor lugar en Medellín.",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
+        ),
+        Review(
+            accommodation_id=hotel_jardin_secreto.id,
+            user_username="pedro",
+            rating=4,
+            comment="Hermosos jardines y habitaciones acogedoras. El acceso al transporte público podría ser más conveniente.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
         ),
         Review(
             accommodation_id=hotel_jardin_secreto.id,
             user_username="maria",
+            rating=4,
+            comment="Un lugar muy tranquilo, ideal para descansar. El desayuno es bueno, pero esperaba más opciones locales.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
+
+        # Cielo Abierto (Bogotá, moderno con vistas)
+        Review(
+            accommodation_id=hotel_cielo_abierto.id,
+            user_username="maria",
             rating=5,
-            comment="Los jardines son un sueño",
-            created_at=datetime.utcnow()
+            comment="Vistas panorámicas impresionantes y un diseño moderno. El servicio es de primera clase. ¡Volveré pronto!",
+            created_at=datetime.utcnow() - timedelta(days=randint(0, 30))
         ),
         Review(
             accommodation_id=hotel_cielo_abierto.id,
-            user_username="camilo",
+            user_username="sofia",
             rating=4,
-            comment="Moderno y cómodo, pero algo ruidoso",
-            created_at=datetime.utcnow()
-        )
+            comment="Hotel moderno con vistas espectaculares. El ruido del tráfico en las noches altas puede ser molesto.",
+            created_at=datetime.utcnow() - timedelta(days=randint(31, 90))
+        ),
+        Review(
+            accommodation_id=hotel_cielo_abierto.id,
+            user_username="juan",
+            rating=4,
+            comment="Habitaciones amplias y vistas increíbles de Bogotá. El check-in fue un poco lento, pero el resto excelente.",
+            created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
+        ),
     ]
+
     db.add_all(reviews)
     await db.flush()
 
@@ -682,4 +823,4 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     await db.commit()
-    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and fixed inventory items!")
+    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and updated image assignments!")

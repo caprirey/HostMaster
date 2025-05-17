@@ -60,10 +60,11 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
             detail=f"Guest count ({reservation_data.guest_count}) exceeds maximum allowed ({room.room_type.max_guests}) for this room type"
         )
 
-    # Consultar reservaciones existentes para la misma habitación
+    # Consultar reservaciones existentes para la misma habitación, excluyendo las canceladas
     result = await db.execute(
         select(ReservationTable).where(
-            ReservationTable.room_id == reservation_data.room_id
+            ReservationTable.room_id == reservation_data.room_id,
+            ReservationTable.status != "cancelled"  # Excluir reservas canceladas
         )
     )
     existing_reservations = result.scalars().all()

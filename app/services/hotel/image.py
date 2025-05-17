@@ -9,6 +9,7 @@ from app.models.sqlalchemy_models import (
 )
 from app.config.settings import BASE_URL, STATIC_DIR, IMAGES_DIR
 from sqlalchemy.orm import selectinload
+from typing import List, Optional
 
 STATIC_PATH = os.path.join(STATIC_DIR, IMAGES_DIR)
 
@@ -21,34 +22,72 @@ async def create_image(db: AsyncSession, image_file: UploadFile, image_data: Ima
             detail="Exactly one of accommodation_id or room_id must be provided, but not both or neither."
         )
 
-    # Verificar permisos
-    if image_data.accommodation_id:
-        result = await db.execute(
-            select(AccommodationTable).where(AccommodationTable.id == image_data.accommodation_id)
-        )
-        accommodation = result.scalar_one_or_none()
-        if not accommodation or (accommodation.created_by != username and username != "admin"):
-            raise HTTPException(status_code=403, detail="No permission to add image to this accommodation")
+    # Obtener el rol del usuario
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    if image_data.room_id:
+    # Determinar el accommodation_id para la verificación
+    target_accommodation_id = None
+    if image_data.accommodation_id:
+        target_accommodation_id = image_data.accommodation_id
+    elif image_data.room_id:
         result = await db.execute(
-            select(RoomTable).join(AccommodationTable).where(RoomTable.id == image_data.room_id)
+            select(RoomTable).where(RoomTable.id == image_data.room_id)
         )
         room = result.scalar_one_or_none()
-        if not room or (room.accommodation.created_by != username and username != "admin"):
-            raise HTTPException(status_code=403, detail="No permission to add image to this room")
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+        target_accommodation_id = room.accommodation_id
+
+    # Verificar permisos
+    if user.role != "admin" and target_accommodation_id:  # Admins tienen acceso total
+        if user.role == "employee":
+            # Verificar si el empleado está asociado al alojamiento en user_accommodation
+            result = await db.execute(
+                select(AccommodationTable)
+                .join(AccommodationTable.users)
+                .where(
+                    AccommodationTable.id == target_accommodation_id,
+                    UserTable.username == username
+                )
+            )
+            if not result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Employee not authorized to add image to this accommodation"
+                )
+        elif user.role == "client":
+            # Mantener lógica original para clientes (basada en created_by)
+            result = await db.execute(
+                select(AccommodationTable).where(AccommodationTable.id == target_accommodation_id)
+            )
+            accommodation = result.scalar_one_or_none()
+            if not accommodation or accommodation.created_by != username:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Client not authorized to add image to this accommodation"
+                )
 
     # Generar un nombre único para el archivo
-    file_extension = image_file.filename.split(".")[-1]
+    file_extension = image_file.filename.split(".")[-1].lower()
+    allowed_extensions = {"jpg", "jpeg", "png"}
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image format. Only JPG, JPEG, and PNG are allowed"
+        )
     filename = f"{uuid.uuid4()}.{file_extension}"
     file_path = os.path.join(STATIC_PATH, filename)
 
     # Guardar la imagen
+    os.makedirs(STATIC_PATH, exist_ok=True)
     with open(file_path, "wb") as f:
         f.write(await image_file.read())
 
     # Generar la URL
-    url = f"{BASE_URL}/static/{IMAGES_DIR}/{filename}"
+    url = f"/{STATIC_DIR}/{IMAGES_DIR}/{filename}"
 
     # Guardar en la base de datos
     image = ImageTable(
@@ -106,7 +145,6 @@ async def get_images(db: AsyncSession, username: str, accommodation_id: int = No
     result = await db.execute(query)
     images = result.scalars().all()
     return [Image.model_validate(image) for image in images]
-
 
 async def delete_images(
         db: AsyncSession,
@@ -175,3 +213,98 @@ async def delete_images(
 
     # Confirmar cambios
     await db.commit()
+
+async def upload_images(
+        db: AsyncSession,
+        request: ImageBase,
+        files: List[UploadFile],
+        username: str
+) -> List[Image]:
+    if (request.accommodation_id is None and request.room_id is None) or \
+            (request.accommodation_id is not None and request.room_id is not None):
+        raise HTTPException(
+            status_code=400,
+            detail="Exactly one of accommodation_id or room_id must be provided"
+        )
+
+    # Obtener el rol del usuario
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Determinar el accommodation_id para la verificación
+    target_accommodation_id = None
+    if request.accommodation_id:
+        target_accommodation_id = request.accommodation_id
+    elif request.room_id:
+        result = await db.execute(
+            select(RoomTable).where(RoomTable.id == request.room_id)
+        )
+        room = result.scalar_one_or_none()
+        if not room:
+            raise HTTPException(status_code=404, detail="Room not found")
+        target_accommodation_id = room.accommodation_id
+
+    # Verificar permisos
+    if user.role != "admin" and target_accommodation_id:  # Admins tienen acceso total
+        if user.role == "employee":
+            # Verificar si el empleado está asociado al alojamiento en user_accommodation
+            result = await db.execute(
+                select(AccommodationTable)
+                .join(AccommodationTable.users)
+                .where(
+                    AccommodationTable.id == target_accommodation_id,
+                    UserTable.username == username
+                )
+            )
+            if not result.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=403,
+                    detail="Employee not authorized to upload images to this accommodation"
+                )
+        elif user.role == "client":
+            # Mantener lógica original para clientes (basada en users)
+            result = await db.execute(
+                select(AccommodationTable)
+                .where(AccommodationTable.id == target_accommodation_id)
+                .options(selectinload(AccommodationTable.users))
+            )
+            accommodation = result.scalar_one_or_none()
+            if not accommodation or username not in [u.username for u in accommodation.users]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Client not authorized to upload images to this accommodation"
+                )
+
+    upload_dir = os.path.join(STATIC_DIR, IMAGES_DIR)
+    os.makedirs(upload_dir, exist_ok=True)
+
+    uploaded_images = []
+    for file in files:
+        file_extension = file.filename.split(".")[-1].lower()
+        allowed_extensions = {"jpg", "jpeg", "png"}
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image format. Only JPG, JPEG, and PNG are allowed"
+            )
+        file_name = f"{uuid.uuid4()}.{file_extension}"
+        file_path = os.path.join(upload_dir, file_name)
+
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+
+        db_image = ImageTable(
+            url=f"/{STATIC_DIR}/{IMAGES_DIR}/{file_name}",  # Usar URL en lugar de ruta local
+            accommodation_id=request.accommodation_id,
+            room_id=request.room_id
+        )
+        db.add(db_image)
+        uploaded_images.append(db_image)
+
+    await db.commit()
+    for image in uploaded_images:
+        await db.refresh(image)
+
+    return [Image.model_validate(image) for image in uploaded_images]
