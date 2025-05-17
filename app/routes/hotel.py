@@ -18,7 +18,8 @@ from app.models.pydantic_models import (
     ReservationExtraService, ReservationExtraServiceCreate, ReservationExtraServiceUpdate,
     Review as ReviewPydantic, ReviewCreate, ReviewUpdate,
     RoomInventory as RoomInventoryPydantic, RoomInventoryCreate, RoomInventoryUpdate, ProductCreate, Product,
-    RoomProductCreate, ProductUpdate, RoomProductUpdate, RoomProduct, RoomProductDetails
+    RoomProductCreate, ProductUpdate, RoomProductUpdate, RoomProduct, RoomProductDetails,
+    Maintenance, MaintenanceCreate, MaintenanceUpdate
 )
 from app.models.sqlalchemy_models import UserTable
 from app.services.hotel import (
@@ -30,7 +31,9 @@ from app.services.hotel import (
 )
 from app.services.hotel import image as images
 from app.services.hotel.room import get_rooms_by_accommodation
-
+from app.services.hotel.maintenance import (  # Nuevos servicios para mantenimientos
+    create_maintenance, get_maintenances, update_maintenance, delete_maintenance
+)
 router = APIRouter()
 
 # --- Countries ---
@@ -640,3 +643,46 @@ async def get_room_by_id_route(
 ):
     """Retrieve details of a specific room by its ID."""
     return await room.get_room_by_id(db, room_id, current_user.username)
+
+
+
+# --- Maintenances ---
+@router.post("/maintenances/", response_model=Maintenance, status_code=status.HTTP_201_CREATED, tags=["Maintenances"], summary="Create a new maintenance request")
+async def create_maintenance_route(
+        maintenance_data: MaintenanceCreate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    """Create a new maintenance request for a room."""
+    return await create_maintenance(db, maintenance_data, current_user.username, current_user.role)
+
+@router.get("/maintenances/", response_model=List[Maintenance], tags=["Maintenances"], summary="Get maintenance requests")
+async def get_maintenances_route(
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+        accommodation_id: Optional[int] = Query(None, description="Filter by accommodation ID"),
+        room_id: Optional[int] = Query(None, description="Filter by room ID"),
+        status: Optional[str] = Query(None, description="Filter by status (pending, in_progress, completed)")
+):
+    """Retrieve maintenance requests, optionally filtered by accommodation, room, or status."""
+    return await get_maintenances(db, current_user.username, accommodation_id, room_id, status)
+
+@router.put("/maintenances/{maintenance_id}", response_model=Maintenance, tags=["Maintenances"], summary="Update a maintenance request")
+async def update_maintenance_route(
+        maintenance_id: int,
+        maintenance_data: MaintenanceUpdate,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    """Update an existing maintenance request."""
+    return await update_maintenance(db, maintenance_id, maintenance_data, current_user.username, current_user.role)
+
+@router.delete("/maintenances/{maintenance_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Maintenances"], summary="Delete a maintenance request")
+async def delete_maintenance_route(
+        maintenance_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    """Delete a maintenance request. Restricted to admin and employee roles."""
+    await delete_maintenance(db, maintenance_id, current_user.username, current_user.role)
+    return None

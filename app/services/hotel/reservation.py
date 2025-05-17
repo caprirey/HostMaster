@@ -2,39 +2,94 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from app.models.pydantic_models import Reservation, ReservationBase, ReservationUpdate
-from app.models.sqlalchemy_models import Reservation as ReservationTable, UserTable, Room as RoomTable, Accommodation
+from app.models.sqlalchemy_models import (
+    Reservation as ReservationTable,
+    UserTable,
+    Room as RoomTable,
+    Accommodation,
+    Maintenance as MaintenanceTable,
+    MaintenanceStatus
+)
 from sqlalchemy.orm import selectinload
 from app.utils.email import send_reservation_confirmation
+from datetime import timedelta
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
+async def _send_confirmation_email(email: str, reservation_details: dict):
+    """
+    Coroutine auxiliar para enviar el correo de confirmación y manejar excepciones.
+
+    Args:
+        email: Dirección de correo del destinatario.
+        reservation_details: Detalles de la reserva para el correo.
+    """
+    try:
+        success = await send_reservation_confirmation(email, reservation_details)
+        if not success:
+            logger.warning(f"No se pudo enviar el correo de confirmación a {email}")
+    except Exception as e:
+        logger.error(f"Error al enviar el correo de confirmación a {email}: {str(e)}")
+
 async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str, current_role: str) -> Reservation:
-    if current_role == "client":
-        if reservation_data.user_username is not None and reservation_data.user_username != current_username:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Clients can only create reservations for themselves"
-            )
+    """
+    Crea una nueva reserva, validando que la habitación no tenga mantenimientos activos que impidan la reserva.
+    El envío del correo de confirmación se realiza en una tarea asíncrona en segundo plano.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        reservation_data: Datos de la reserva (fechas, habitación, etc.).
+        current_username: Nombre de usuario autenticado.
+        current_role: Rol del usuario (admin, employee, client).
+
+    Returns:
+        Reservation: Objeto Pydantic con los datos de la reserva creada, con fechas en formato YYYY-MM-DD.
+
+    Raises:
+        HTTPException: Si el usuario, habitación, o alojamiento no existen, hay conflictos de fechas,
+                       la habitación tiene mantenimientos activos que impidan la reserva, o los permisos no son válidos.
+    """
+    # Validar usuario autenticado
+    result = await db.execute(select(UserTable).where(UserTable.username == current_username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Authenticated user not found")
 
     # Determinar el username a usar: el especificado o el del usuario autenticado
     target_username = reservation_data.user_username if reservation_data.user_username is not None else current_username
 
     # Validar que el usuario especificado exista
     result = await db.execute(select(UserTable).where(UserTable.username == target_username))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User {target_username} not found"
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User {target_username} not found")
+
+    # Validar permisos
+    if current_role == "client":
+        if target_username != current_username:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Clients can only create reservations for themselves"
+            )
+    elif current_role == "employee":
+        # Empleados solo para alojamientos en user_accommodation
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(
+                Accommodation.id == reservation_data.accommodation_id,
+                UserTable.username == current_username
+            )
         )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Employee not authorized for this accommodation")
+    # Admins tienen acceso total
 
     # Validar que las fechas sean coherentes
     if reservation_data.start_date >= reservation_data.end_date:
-        raise HTTPException(
-            status_code=400,
-            detail="Start date must be before end date"
-        )
+        raise HTTPException(status_code=400, detail="Start date must be before end date")
 
     # Consultar la habitación y su tipo para obtener max_guests
     result = await db.execute(
@@ -64,18 +119,35 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     result = await db.execute(
         select(ReservationTable).where(
             ReservationTable.room_id == reservation_data.room_id,
-            ReservationTable.status != "cancelled"  # Excluir reservas canceladas
+            ReservationTable.status != "cancelled"
         )
     )
     existing_reservations = result.scalars().all()
 
-    # Verificar si hay superposición de fechas
+    # Verificar si hay superposición de fechas con reservas
     for existing in existing_reservations:
         if (reservation_data.start_date < existing.end_date and
                 reservation_data.end_date > existing.start_date):
             raise HTTPException(
                 status_code=400,
                 detail=f"Room {reservation_data.room_id} is already booked from {existing.start_date} to {existing.end_date}"
+            )
+
+    # Consultar mantenimientos activos (pending o in_progress) para la habitación
+    result = await db.execute(
+        select(MaintenanceTable).where(
+            MaintenanceTable.room_id == reservation_data.room_id,
+            MaintenanceTable.status.in_([MaintenanceStatus.PENDING, MaintenanceStatus.IN_PROGRESS])
+        )
+    )
+    active_maintenances = result.scalars().all()
+
+    # Verificar si hay mantenimientos activos que impidan la reserva
+    for maintenance in active_maintenances:
+        if reservation_data.start_date < maintenance.updated_at + timedelta(days=1):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Room {reservation_data.room_id} has an active maintenance (ID: {maintenance.id}, Status: {maintenance.status}, Updated: {maintenance.updated_at})"
             )
 
     # Consultar el alojamiento para el correo
@@ -108,8 +180,8 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     )
     reservation = result.scalar_one()
 
-    # Enviar correo de confirmación si el usuario tiene email
-    if user.email:
+    # Programar el envío del correo de confirmación en segundo plano
+    if target_user.email:
         reservation_details = {
             "reservation_id": reservation.id,
             "accommodation_name": accommodation.name,
@@ -119,34 +191,62 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
             "guest_count": reservation.guest_count,
             "status": reservation.status
         }
-        success = await send_reservation_confirmation(user.email, reservation_details)
-        if not success:
-            logger.warning(f"No se pudo enviar el correo de confirmación a {user.email}")
+        asyncio.create_task(_send_confirmation_email(target_user.email, reservation_details))
 
-    return Reservation.model_validate(reservation)
+    # Formatear fechas a YYYY-MM-DD en la respuesta
+    reservation_response = Reservation.model_validate(reservation)
+    reservation_response.start_date = reservation.start_date.strftime("%Y-%m-%d")
+    reservation_response.end_date = reservation.end_date.strftime("%Y-%m-%d")
+    return reservation_response
 
 async def get_reservations(db: AsyncSession, username: str) -> list[Reservation]:
+    """
+    Lista las reservas según el rol del usuario.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        username: Nombre de usuario autenticado.
+
+    Returns:
+        list[Reservation]: Lista de reservas accesibles para el usuario.
+
+    Raises:
+        HTTPException: Si el usuario no existe o el rol es inválido.
+    """
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.role == "admin" or user.role == "employee":
-        result = await db.execute(
-            select(ReservationTable)
-            .options(selectinload(ReservationTable.extra_services))
-        )
-    elif user.role == "client":
-        result = await db.execute(
-            select(ReservationTable)
-            .where(ReservationTable.user_username == username)
-            .options(selectinload(ReservationTable.extra_services))
-        )
-    else:
-        raise HTTPException(status_code=403, detail="Invalid role")
+    query = select(ReservationTable).options(selectinload(ReservationTable.extra_services))
 
+    if user.role == "client":
+        # Clientes solo ven sus propias reservas
+        query = query.where(ReservationTable.user_username == username)
+    elif user.role == "employee":
+        # Empleados solo ven reservas de alojamientos asociados
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(UserTable.username == username)
+        )
+        allowed_accommodations = [a.id for a in result.scalars().all()]
+        if not allowed_accommodations:
+            return []
+        query = query.where(ReservationTable.accommodation_id.in_(allowed_accommodations))
+    # Admins ven todas las reservas
+
+    result = await db.execute(query)
     reservations = result.scalars().all()
-    return [Reservation.model_validate(reservation) for reservation in reservations]
+    # Formatear fechas a YYYY-MM-DD en la respuesta
+    return [
+        Reservation.model_validate(reservation).model_copy(
+            update={
+                "start_date": reservation.start_date.strftime("%Y-%m-%d"),
+                "end_date": reservation.end_date.strftime("%Y-%m-%d")
+            }
+        ) for reservation in reservations
+    ]
 
 async def update_reservation(
         db: AsyncSession,
@@ -154,6 +254,22 @@ async def update_reservation(
         reservation_update: ReservationUpdate,
         username: str
 ) -> Reservation:
+    """
+    Actualiza una reserva existente, validando que la habitación no tenga mantenimientos activos que impidan la reserva.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        reservation_id: ID de la reserva a actualizar.
+        reservation_update: Datos actualizados (parciales).
+        username: Nombre de usuario autenticado.
+
+    Returns:
+        Reservation: Objeto Pydantic con los datos actualizados, con fechas en formato YYYY-MM-DD.
+
+    Raises:
+        HTTPException: Si la reserva, usuario, o habitación no existen, hay conflictos de fechas,
+                       la habitación tiene mantenimientos activos que impidan la reserva, o los permisos no son válidos.
+    """
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
@@ -171,22 +287,51 @@ async def update_reservation(
     if not db_reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    if (user.role != "admin" and user.role != "employee") and db_reservation.user_username != username:
-        raise HTTPException(status_code=403, detail="Not authorized to update this reservation")
+    # Validar permisos
+    if user.role == "client":
+        if db_reservation.user_username != username:
+            raise HTTPException(status_code=403, detail="Clients can only update their own reservations")
+    elif user.role == "employee":
+        # Empleados solo para reservas en alojamientos asociados
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(
+                Accommodation.id == db_reservation.accommodation_id,
+                UserTable.username == username
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Employee not authorized for this accommodation")
+    # Admins tienen acceso total
 
+    # Validar nuevo usuario si se especifica
     if reservation_update.user_username is not None:
         result = await db.execute(
             select(UserTable).where(UserTable.username == reservation_update.user_username)
         )
         target_user = result.scalar_one_or_none()
         if not target_user:
-            raise HTTPException(
-                status_code=404,
-                detail=f"User {reservation_update.user_username} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"User {reservation_update.user_username} not found")
+        # Clientes solo pueden asignar reservas a sí mismos
+        if user.role == "client" and reservation_update.user_username != username:
+            raise HTTPException(status_code=403, detail="Clients can only assign reservations to themselves")
 
     new_room_id = reservation_update.room_id if reservation_update.room_id is not None else db_reservation.room_id
     new_accommodation_id = reservation_update.accommodation_id if reservation_update.accommodation_id is not None else db_reservation.accommodation_id
+
+    # Validar permisos para el nuevo alojamiento (si cambió)
+    if new_accommodation_id != db_reservation.accommodation_id and user.role == "employee":
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(
+                Accommodation.id == new_accommodation_id,
+                UserTable.username == username
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Employee not authorized for the new accommodation")
 
     result = await db.execute(
         select(RoomTable)
@@ -220,6 +365,7 @@ async def update_reservation(
         if new_start_date >= new_end_date:
             raise HTTPException(status_code=400, detail="Start date must be before end date")
 
+    # Validar conflictos con otras reservas
     if (reservation_update.room_id is not None or
             reservation_update.start_date is not None or
             reservation_update.end_date is not None):
@@ -227,6 +373,7 @@ async def update_reservation(
             select(ReservationTable)
             .where(ReservationTable.room_id == new_room_id)
             .where(ReservationTable.id != reservation_id)
+            .where(ReservationTable.status != "cancelled")
         )
         existing_reservations = result.scalars().all()
         for existing in existing_reservations:
@@ -236,15 +383,47 @@ async def update_reservation(
                     detail=f"Room {new_room_id} is already booked from {existing.start_date} to {existing.end_date}"
                 )
 
+    # Validar mantenimientos activos para la nueva habitación
+    result = await db.execute(
+        select(MaintenanceTable).where(
+            MaintenanceTable.room_id == new_room_id,
+            MaintenanceTable.status.in_([MaintenanceStatus.PENDING, MaintenanceStatus.IN_PROGRESS])
+        )
+    )
+    active_maintenances = result.scalars().all()
+
+    for maintenance in active_maintenances:
+        if new_start_date < maintenance.updated_at + timedelta(days=1):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Room {new_room_id} has an active maintenance (ID: {maintenance.id}, Status: {maintenance.status}, Updated: {maintenance.updated_at})"
+            )
+
     update_data = reservation_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_reservation, key, value)
 
     await db.commit()
     await db.refresh(db_reservation)
-    return Reservation.model_validate(db_reservation)
+
+    # Formatear fechas a YYYY-MM-DD en la respuesta
+    reservation_response = Reservation.model_validate(db_reservation)
+    reservation_response.start_date = db_reservation.start_date.strftime("%Y-%m-%d")
+    reservation_response.end_date = db_reservation.end_date.strftime("%Y-%m-%d")
+    return reservation_response
 
 async def delete_reservation(db: AsyncSession, reservation_id: int, username: str) -> None:
+    """
+    Elimina una reserva existente, validando permisos de usuario.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        reservation_id: ID de la reserva a eliminar.
+        username: Nombre de usuario autenticado.
+
+    Raises:
+        HTTPException: Si la reserva no existe o el usuario no tiene permisos.
+    """
     result = await db.execute(select(UserTable).where(UserTable.username == username))
     user = result.scalar_one_or_none()
     if not user:
@@ -259,8 +438,23 @@ async def delete_reservation(db: AsyncSession, reservation_id: int, username: st
     if not db_reservation:
         raise HTTPException(status_code=404, detail="Reservation not found")
 
-    if (user.role != "admin" and user.role != "employee") and db_reservation.user_username != username:
-        raise HTTPException(status_code=403, detail="Not authorized to delete this reservation")
+    # Validar permisos
+    if user.role == "client":
+        if db_reservation.user_username != username:
+            raise HTTPException(status_code=403, detail="Clients can only delete their own reservations")
+    elif user.role == "employee":
+        # Empleados solo para reservas en alojamientos asociados
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(
+                Accommodation.id == db_reservation.accommodation_id,
+                UserTable.username == username
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Employee not authorized for this accommodation")
+    # Admins tienen acceso total
 
     await db.delete(db_reservation)
     await db.commit()

@@ -1,9 +1,22 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float, Table, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Date, UniqueConstraint, Float, Table, DateTime, Enum, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, date
+import enum
+from sqlalchemy import Date
 
 Base = declarative_base()
+
+# Enums para Maintenance
+class MaintenanceStatus(str, enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+
+class MaintenancePriority(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 class UserTable(Base):
     __tablename__ = "users"
@@ -13,10 +26,10 @@ class UserTable(Base):
     hashed_password = Column(String, nullable=False)
     disabled = Column(Boolean, default=False)
     role = Column(String, default="client")
-    firstname = Column(String, nullable=False)  # Nuevo campo: nombre
-    lastname = Column(String, nullable=False)  # Nuevo campo: apellido
-    document_number = Column(String, nullable=False, unique=True)  # Nuevo campo: número de documento, único
-    image = Column(String, nullable=True)  # Nuevo campo: URL o ruta de la imagen
+    firstname = Column(String, nullable=False)
+    lastname = Column(String, nullable=False)
+    document_number = Column(String, nullable=False, unique=True)
+    image = Column(String, nullable=True)
     phone_number = Column(String, nullable=False)
     reservations = relationship("Reservation", back_populates="user")
     reviews = relationship("Review", back_populates="user")
@@ -24,6 +37,16 @@ class UserTable(Base):
         "Accommodation",
         secondary="user_accommodation",
         back_populates="users"
+    )
+    maintenances_created = relationship(
+        "Maintenance",
+        foreign_keys="Maintenance.created_by",
+        back_populates="creator"
+    )
+    maintenances_assigned = relationship(
+        "Maintenance",
+        foreign_keys="Maintenance.assigned_to",
+        back_populates="assignee"
     )
 
 # Tabla intermedia UserAccommodation
@@ -69,16 +92,17 @@ class Accommodation(Base):
     reviews = relationship("Review", back_populates="accommodation")
     users = relationship(
         "UserTable",
-        secondary="user_accommodation",  # Usar la tabla intermedia
+        secondary="user_accommodation",
         back_populates="accommodations"
     )
+    maintenances = relationship("Maintenance", back_populates="accommodation")
 
 class RoomType(Base):
     __tablename__ = 'room_types'
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     max_guests = Column(Integer, nullable=False)
-    description = Column(String, nullable=True)  # Nuevo campo description
+    description = Column(String, nullable=True)
     rooms = relationship("Room", back_populates="room_type")
 
 class Room(Base):
@@ -88,17 +112,18 @@ class Room(Base):
     type_id = Column(Integer, ForeignKey('room_types.id'))
     number = Column(String, nullable=False)
     price = Column(Float, nullable=False)
-    isAvailable = Column(Boolean, default=True, nullable=False)  # Nuevo campo
+    isAvailable = Column(Boolean, default=True, nullable=False)
     accommodation = relationship("Accommodation", back_populates="rooms")
     room_type = relationship("RoomType", back_populates="rooms")
     reservations = relationship("Reservation", back_populates="room")
-    images = relationship("Image", back_populates="room")  # Relación con imágenes
-    inventory_items = relationship("RoomInventory", back_populates="room")  # Nueva relación
-    products = relationship(  # Nueva relación muchos a muchos
+    images = relationship("Image", back_populates="room")
+    inventory_items = relationship("RoomInventory", back_populates="room")
+    products = relationship(
         "Product",
         secondary="room_product",
         back_populates="rooms"
     )
+    maintenances = relationship("Maintenance", back_populates="room")
     __table_args__ = (
         UniqueConstraint('accommodation_id', 'number', name='uix_accommodation_number'),
     )
@@ -108,36 +133,33 @@ class Reservation(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_username = Column(String, ForeignKey('users.username'), nullable=False)
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
-    accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=False)  # Nuevo campo
+    accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     guest_count = Column(Integer, nullable=False)
-    status = Column(String, nullable=False, default="pending")  # Nuevo campo como String sin restricciones
-    observations = Column(String, nullable=True)  # Nuevo campo opcional
+    status = Column(String, nullable=False, default="pending")
+    observations = Column(String, nullable=True)
     user = relationship("UserTable", back_populates="reservations")
     room = relationship("Room", back_populates="reservations")
-    accommodation = relationship("Accommodation")  # Nueva relación
+    accommodation = relationship("Accommodation")
     extra_services = relationship("ExtraService", secondary="reservation_extra_service", back_populates="reservations")
-
 
 class Image(Base):
     __tablename__ = 'images'
     id = Column(Integer, primary_key=True, index=True)
-    url = Column(String, nullable=False)  # URL o ruta de la imagen
+    url = Column(String, nullable=False)
     accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=True)
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=True)
     accommodation = relationship("Accommodation", back_populates="images")
     room = relationship("Room", back_populates="images")
 
-
-# Nueva tabla ExtraService
 class ExtraService(Base):
     __tablename__ = 'extra_services'
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)  # Nombre del servicio (e.g., "Desayuno")
-    description = Column(String, nullable=True)  # Descripción opcional
-    price = Column(Float, nullable=False)  # Precio del servicio
-    reservations = relationship("Reservation", secondary="reservation_extra_service", back_populates="extra_services")  # Relación inversa
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    price = Column(Float, nullable=False)
+    reservations = relationship("Reservation", secondary="reservation_extra_service", back_populates="extra_services")
 
 # Tabla intermedia ReservationExtraService
 reservation_extra_service = Table(
@@ -147,58 +169,65 @@ reservation_extra_service = Table(
     Column('extra_service_id', Integer, ForeignKey('extra_services.id'), primary_key=True)
 )
 
-# Nuevo modelo Review
 class Review(Base):
     __tablename__ = 'reviews'
     id = Column(Integer, primary_key=True, index=True)
     accommodation_id = Column(Integer, ForeignKey('accommodations.id'), nullable=False)
     user_username = Column(String, ForeignKey('users.username'), nullable=False)
-    rating = Column(Integer, nullable=False)  # Calificación de 1 a 5
-    comment = Column(String, nullable=True)  # Comentario opcional
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Fecha de creación
-
+    rating = Column(Integer, nullable=False)
+    comment = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     accommodation = relationship("Accommodation", back_populates="reviews")
     user = relationship("UserTable", back_populates="reviews")
 
-   # __table_args__ = (
-   #     UniqueConstraint('accommodation_id', 'user_username', name='uix_accommodation_user'),
-   # )
-
-    # Nuevo modelo RoomInventory
 class RoomInventory(Base):
     __tablename__ = 'room_inventory'
     id = Column(Integer, primary_key=True, index=True)
     room_id = Column(Integer, ForeignKey('rooms.id'), nullable=False)
-    product_name = Column(String, nullable=False)  # Nombre del producto
-    quantity = Column(Integer, nullable=False, default=0)  # Cantidad disponible
-    min_quantity = Column(Integer, nullable=False, default=0)  # Cantidad mínima requerida
-    needs_restock = Column(Boolean, nullable=False, default=False)  # ¿Necesita reposición?
-
+    product_name = Column(String, nullable=False)
+    quantity = Column(Integer, nullable=False, default=0)
+    min_quantity = Column(Integer, nullable=False, default=0)
+    needs_restock = Column(Boolean, nullable=False, default=False)
     room = relationship("Room", back_populates="inventory_items")
-
     __table_args__ = (
         UniqueConstraint('room_id', 'product_name', name='uix_room_product'),
     )
 
-    # Nueva tabla intermedia RoomProduct
+# Tabla intermedia RoomProduct
 room_product = Table(
     'room_product',
     Base.metadata,
     Column('room_id', Integer, ForeignKey('rooms.id'), primary_key=True),
     Column('product_id', Integer, ForeignKey('products.id'), primary_key=True),
-    Column('quantity', Integer, nullable=False, default=1),  # Cantidad asignada
-    Column('needs_restock', Boolean, nullable=False, default=False)  # Necesita reposición
+    Column('quantity', Integer, nullable=False, default=1),
+    Column('needs_restock', Boolean, nullable=False, default=False)
 )
 
-# Nueva tabla Products
 class Product(Base):
     __tablename__ = 'products'
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)  # Ejemplo: "Toallas", "Sábanas"
-    description = Column(String, nullable=True)  # Descripción opcional
-    price = Column(Float, nullable=True)  # Precio opcional del producto
-    rooms = relationship(  # Relación muchos a muchos con Room
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    price = Column(Float, nullable=True)
+    rooms = relationship(
         "Room",
         secondary="room_product",
         back_populates="products"
     )
+
+class Maintenance(Base):
+    __tablename__ = "maintenances"
+    id = Column(Integer, primary_key=True, index=True)
+    description = Column(Text, nullable=False)
+    status = Column(Enum(MaintenanceStatus), default=MaintenanceStatus.PENDING, nullable=False)
+    priority = Column(Enum(MaintenancePriority), default=MaintenancePriority.MEDIUM, nullable=False)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    accommodation_id = Column(Integer, ForeignKey("accommodations.id"), nullable=False)
+    created_by = Column(String, ForeignKey("users.username"), nullable=False)
+    assigned_to = Column(String, ForeignKey("users.username"), nullable=True)
+    created_at = Column(Date, default=date.today, nullable=False)
+    updated_at = Column(Date, default=date.today, onupdate=date.today, nullable=False)
+    room = relationship("Room", back_populates="maintenances")
+    accommodation = relationship("Accommodation", back_populates="maintenances")
+    creator = relationship("UserTable", foreign_keys=[created_by], back_populates="maintenances_created")
+    assignee = relationship("UserTable", foreign_keys=[assigned_to], back_populates="maintenances_assigned")

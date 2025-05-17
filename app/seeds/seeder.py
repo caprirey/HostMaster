@@ -1,18 +1,18 @@
 import csv
-import os  # Añadido para os.path.join
+import os
 from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import insert
 from app.models.sqlalchemy_models import (
     Country, State, City, Accommodation, RoomType, Room, UserTable, Reservation,
-    Image, Review, ExtraService, reservation_extra_service, RoomInventory, Product, room_product
+    Image, Review, ExtraService, reservation_extra_service, RoomInventory, Product, room_product,
+    Maintenance, MaintenanceStatus, MaintenancePriority
 )
 from app.utils.auth import get_password_hash
-from app.config.settings import STATIC_DIR, IMAGES_DIR  # Añadido para rutas configurables
+from app.config.settings import STATIC_DIR, IMAGES_DIR
 from datetime import date, timedelta, datetime
-from random import randint  # Añadido para fechas aleatorias
-
+from random import randint
 
 async def seed_database(db: AsyncSession):
     result = await db.execute(select(UserTable))
@@ -31,7 +31,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("admin123"),
         disabled=False,
         role="admin",
-        image=os.path.join(STATIC_DIR, "users", "user_admin.png"),  # Ajustado con os.path.join
+        image=os.path.join(STATIC_DIR, "users", "user_admin.png").replace(os.sep, "/"),
         phone_number="+573183894217"
     )
     user1 = UserTable(
@@ -44,7 +44,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("maria"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
         phone_number="+573112512612"
     )
     employee = UserTable(
@@ -57,7 +57,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("camilo"),
         disabled=False,
         role="employee",
-        image=os.path.join(STATIC_DIR, IMAGES_DIR, "user_hombre.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, IMAGES_DIR, "user_hombre.jpg").replace(os.sep, "/"),
         phone_number="+573044315484"
     )
     user2 = UserTable(
@@ -70,7 +70,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("juan123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg").replace(os.sep, "/"),
         phone_number="+573044315484"
     )
     user3 = UserTable(
@@ -83,7 +83,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("sofia123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
         phone_number="+573044315484"
     )
     user4 = UserTable(
@@ -96,7 +96,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("pedro123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg").replace(os.sep, "/"),
         phone_number="+573044315484"
     )
     user5 = UserTable(
@@ -109,7 +109,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("laura123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg"),  # Ajustado
+        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
         phone_number="+573044315484"
     )
     db.add_all([admin_user, user1, employee, user2, user3, user4, user5])
@@ -317,16 +317,55 @@ async def seed_database(db: AsyncSession):
     db.add_all(reservations)
     await db.flush()
 
+    # Mantenimientos
+    maintenances = [
+        Maintenance(
+            description="Reparar aire acondicionado",
+            status=MaintenanceStatus.PENDING,
+            priority=MaintenancePriority.HIGH,
+            room_id=[r.id for r in rooms if r.accommodation_id == hotel_poblado.id and r.number == "101"][0],
+            accommodation_id=hotel_poblado.id,
+            created_by="camilo",  # Employee
+            assigned_to="camilo",
+            created_at=date(2025, 5, 17),  # Formato YYYY-MM-DD como datetime
+            updated_at=date(2025, 5, 17)
+        ),
+        Maintenance(
+            description="Reemplazar bombilla fundida",
+            status=MaintenanceStatus.IN_PROGRESS,
+            priority=MaintenancePriority.MEDIUM,
+            room_id=[r.id for r in rooms if r.accommodation_id == hotel_tequendama.id and r.number == "205"][0],
+            accommodation_id=hotel_tequendama.id,
+            created_by="admin",  # Admin
+            assigned_to="camilo",
+            created_at=date(2025, 5, 15),  # Dos días antes
+            updated_at=date(2025, 5, 17)
+        ),
+        Maintenance(
+            description="Limpiar alfombra manchada",
+            status=MaintenanceStatus.PENDING,
+            priority=MaintenancePriority.LOW,
+            room_id=[r.id for r in rooms if r.accommodation_id == hotel_casa_luz.id and r.number == "308"][0],
+            accommodation_id=hotel_casa_luz.id,
+            created_by="admin",  # Admin
+            assigned_to="camilo",
+            created_at=date(2025, 5, 12),  # Cinco días antes
+            updated_at=date(2025, 5, 17)
+        ),
+    ]
+    db.add_all(maintenances)
+    await db.flush()
+
     # Imágenes
     images = []
 
     # Imágenes para alojamientos
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_0.jpg"), accommodation_id=hotel_poblado.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_1.jpg"), accommodation_id=hotel_tequendama.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_2.jpg"), accommodation_id=hotel_casa_luz.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_3.jpg"), accommodation_id=hotel_verde_valle.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_4.jpg"), accommodation_id=hotel_jardin_secreto.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_5.jpg"), accommodation_id=hotel_cielo_abierto.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_0.jpg").replace(os.sep, "/"), accommodation_id=hotel_poblado.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_1.jpg").replace(os.sep, "/"), accommodation_id=hotel_tequendama.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_2.jpg").replace(os.sep, "/"), accommodation_id=hotel_casa_luz.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_3.jpg").replace(os.sep, "/"), accommodation_id=hotel_verde_valle.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_4.jpg").replace(os.sep, "/"), accommodation_id=hotel_jardin_secreto.id))
+    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_5.jpg").replace(os.sep, "/"), accommodation_id=hotel_cielo_abierto.id))
 
     # Imágenes para habitaciones
     sencilla_images = [
@@ -350,39 +389,36 @@ async def seed_database(db: AsyncSession):
 
     for accom in accommodations:
         accom_rooms = [r for r in rooms if r.accommodation_id == accom.id]
-        sencilla_rooms = [r for r in accom_rooms if r.type_id == sencilla.id]  # 4 habitaciones
-        doble_rooms = [r for r in accom_rooms if r.type_id == doble.id]        # 3 habitaciones
-        familiar_rooms = [r for r in accom_rooms if r.type_id == familiar.id]  # 3 habitaciones
+        sencilla_rooms = [r for r in accom_rooms if r.type_id == sencilla.id]
+        doble_rooms = [r for r in accom_rooms if r.type_id == doble.id]
+        familiar_rooms = [r for r in accom_rooms if r.type_id == familiar.id]
 
-        # Asignar imágenes a habitaciones sencillas
         for i, room in enumerate(sencilla_rooms):
-            image_name = sencilla_images[i % len(sencilla_images)]  # Ciclo entre las 4 imágenes
+            image_name = sencilla_images[i % len(sencilla_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
                 room_id=room.id
             ))
 
-        # Asignar imágenes a habitaciones dobles
         for i, room in enumerate(doble_rooms):
-            image_name = doble_images[i % len(doble_images)]  # Ciclo entre las 4 imágenes, pero solo 3 usadas
+            image_name = doble_images[i % len(doble_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
                 room_id=room.id
             ))
 
-        # Asignar imágenes a habitaciones familiares
         for i, room in enumerate(familiar_rooms):
-            image_name = familiar_images[i % len(familiar_images)]  # Ciclo entre las 4 imágenes, pero solo 3 usadas
+            image_name = familiar_images[i % len(familiar_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name),
+                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
                 room_id=room.id
             ))
 
     db.add_all(images)
     await db.flush()
 
+    # Reseñas
     reviews = [
-        # Hotel El Poblado Plaza (Medellín, lujo)
         Review(
             accommodation_id=hotel_poblado.id,
             user_username="maria",
@@ -404,8 +440,6 @@ async def seed_database(db: AsyncSession):
             comment="Buen hotel, pero el ruido de la calle por la noche fue molesto. El servicio es excelente.",
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
-
-        # Hotel Tequendama (Bogotá, histórico)
         Review(
             accommodation_id=hotel_tequendama.id,
             user_username="juan",
@@ -427,8 +461,6 @@ async def seed_database(db: AsyncSession):
             comment="Ubicación céntrica y habitaciones cómodas. Algunas áreas necesitan renovación, pero el ambiente es único.",
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
-
-        # Casa de la Luz (Cartagena, boutique con vistas al mar)
         Review(
             accommodation_id=hotel_casa_luz.id,
             user_username="pedro",
@@ -450,8 +482,6 @@ async def seed_database(db: AsyncSession):
             comment="El diseño del hotel es hermoso y el personal muy atento. El estacionamiento es limitado, pero manejable.",
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
-
-        # Verde Valle (Cali, ecológico)
         Review(
             accommodation_id=hotel_verde_valle.id,
             user_username="sofia",
@@ -473,8 +503,6 @@ async def seed_database(db: AsyncSession):
             comment="Concepto ecológico interesante, pero el agua caliente en la ducha era inconsistente. Personal muy amable.",
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
-
-        # Jardín Secreto (Medellín, tranquilo con jardines)
         Review(
             accommodation_id=hotel_jardin_secreto.id,
             user_username="pedro",
@@ -496,8 +524,6 @@ async def seed_database(db: AsyncSession):
             comment="Un lugar muy tranquilo, ideal para descansar. El desayuno es bueno, pero esperaba más opciones locales.",
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
-
-        # Cielo Abierto (Bogotá, moderno con vistas)
         Review(
             accommodation_id=hotel_cielo_abierto.id,
             user_username="maria",
@@ -823,4 +849,4 @@ async def seed_database(db: AsyncSession):
     await db.flush()
 
     await db.commit()
-    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, and updated image assignments!")
+    print("Database seeded successfully with all Colombian departments, municipalities, accommodations, rooms, reservations, images, and maintenances!")
