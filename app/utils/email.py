@@ -67,18 +67,19 @@ async def send_reservation_confirmation(
         reservation_details: Dict[str, any]
 ) -> bool:
     """
-    Envía un correo de confirmación de reserva.
+    Envía un correo de confirmación o actualización de reserva.
 
     Args:
         recipient: Correo electrónico del usuario.
-        reservation_details: Diccionario con detalles de la reserva.
+        reservation_details: Diccionario con detalles de la reserva, incluyendo 'title' y 'message'.
 
     Returns:
         bool: True si el correo se envió correctamente, False si falló.
     """
+    subject = f"{reservation_details.get('title', 'Confirmación de Reserva')} - HostMaster"
     return await send_email(
         recipient=recipient,
-        subject="Confirmación de Reserva - HostMaster",
+        subject=subject,
         template_name="reservation_confirmation.html",
         template_body=reservation_details
     )

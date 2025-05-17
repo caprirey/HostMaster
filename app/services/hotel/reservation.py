@@ -20,18 +20,18 @@ logger = logging.getLogger(__name__)
 
 async def _send_confirmation_email(email: str, reservation_details: dict):
     """
-    Coroutine auxiliar para enviar el correo de confirmación y manejar excepciones.
+    Coroutine auxiliar para enviar el correo de confirmación o actualización y manejar excepciones.
 
     Args:
         email: Dirección de correo del destinatario.
-        reservation_details: Detalles de la reserva para el correo.
+        reservation_details: Diccionario con los detalles de la reserva, incluyendo 'title' y 'message'.
     """
     try:
         success = await send_reservation_confirmation(email, reservation_details)
         if not success:
-            logger.warning(f"No se pudo enviar el correo de confirmación a {email}")
+            logger.warning(f"No se pudo enviar el correo a {email}")
     except Exception as e:
-        logger.error(f"Error al enviar el correo de confirmación a {email}: {str(e)}")
+        logger.error(f"Error al enviar el correo a {email}: {str(e)}")
 
 async def create_reservation(db: AsyncSession, reservation_data: ReservationBase, current_username: str, current_role: str) -> Reservation:
     """
@@ -183,6 +183,8 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     # Programar el envío del correo de confirmación en segundo plano
     if target_user.email:
         reservation_details = {
+            "title": "Confirmación de Reserva",
+            "message": "¡Gracias por elegir HostMaster! Su reserva ha sido confirmada con éxito.",
             "reservation_id": reservation.id,
             "accommodation_name": accommodation.name,
             "room_number": room.number,
@@ -256,6 +258,7 @@ async def update_reservation(
 ) -> Reservation:
     """
     Actualiza una reserva existente, validando que la habitación no tenga mantenimientos activos que impidan la reserva.
+    Envía un correo de confirmación asíncrono con los detalles actualizados.
 
     Args:
         db: Sesión de base de datos asíncrona.
@@ -305,14 +308,17 @@ async def update_reservation(
             raise HTTPException(status_code=403, detail="Employee not authorized for this accommodation")
     # Admins tienen acceso total
 
-    # Validar nuevo usuario si se especifica
+    # Determinar el usuario destinatario del correo (nuevo o existente)
+    target_username = reservation_update.user_username if reservation_update.user_username is not None else db_reservation.user_username
+    result = await db.execute(
+        select(UserTable).where(UserTable.username == target_username)
+    )
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail=f"User {target_username} not found")
+
+    # Validar permisos para el nuevo usuario
     if reservation_update.user_username is not None:
-        result = await db.execute(
-            select(UserTable).where(UserTable.username == reservation_update.user_username)
-        )
-        target_user = result.scalar_one_or_none()
-        if not target_user:
-            raise HTTPException(status_code=404, detail=f"User {reservation_update.user_username} not found")
         # Clientes solo pueden asignar reservas a sí mismos
         if user.role == "client" and reservation_update.user_username != username:
             raise HTTPException(status_code=403, detail="Clients can only assign reservations to themselves")
@@ -333,6 +339,7 @@ async def update_reservation(
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=403, detail="Employee not authorized for the new accommodation")
 
+    # Consultar la habitación para validar y obtener el room_number
     result = await db.execute(
         select(RoomTable)
         .where(RoomTable.id == new_room_id)
@@ -350,6 +357,7 @@ async def update_reservation(
             detail="The accommodation_id does not match the room's accommodation"
         )
 
+    # Validar el número de huéspedes
     if reservation_update.guest_count is not None:
         if reservation_update.guest_count <= 0:
             raise HTTPException(status_code=400, detail="Guest count must be greater than 0")
@@ -359,6 +367,7 @@ async def update_reservation(
                 detail=f"Guest count ({reservation_update.guest_count}) exceeds maximum allowed ({room.room_type.max_guests}) for this room type"
             )
 
+    # Validar fechas
     new_start_date = reservation_update.start_date if reservation_update.start_date is not None else db_reservation.start_date
     new_end_date = reservation_update.end_date if reservation_update.end_date is not None else db_reservation.end_date
     if reservation_update.start_date is not None or reservation_update.end_date is not None:
@@ -399,12 +408,36 @@ async def update_reservation(
                 detail=f"Room {new_room_id} has an active maintenance (ID: {maintenance.id}, Status: {maintenance.status}, Updated: {maintenance.updated_at})"
             )
 
+    # Consultar el alojamiento para el correo
+    result = await db.execute(
+        select(Accommodation).where(Accommodation.id == new_accommodation_id)
+    )
+    accommodation = result.scalar_one_or_none()
+    if not accommodation:
+        raise HTTPException(status_code=404, detail="Accommodation not found")
+
+    # Actualizar la reserva
     update_data = reservation_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_reservation, key, value)
 
     await db.commit()
     await db.refresh(db_reservation)
+
+    # Programar el envío del correo de actualización en segundo plano
+    if target_user.email:
+        reservation_details = {
+            "title": "Actualización de Reserva",
+            "message": "Su reserva ha sido actualizada con éxito. A continuación, los detalles actualizados:",
+            "reservation_id": db_reservation.id,
+            "accommodation_name": accommodation.name,
+            "room_number": room.number,
+            "start_date": db_reservation.start_date.strftime("%Y-%m-%d"),
+            "end_date": db_reservation.end_date.strftime("%Y-%m-%d"),
+            "guest_count": db_reservation.guest_count,
+            "status": db_reservation.status
+        }
+        asyncio.create_task(_send_confirmation_email(target_user.email, reservation_details))
 
     # Formatear fechas a YYYY-MM-DD en la respuesta
     reservation_response = Reservation.model_validate(db_reservation)
