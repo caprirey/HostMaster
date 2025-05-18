@@ -69,11 +69,21 @@
             </tr>
             <tr>
                 <th>Estado</th>
-                <td>{{ status }}</td>
+                <td>
+                    {% if status == 'confirmed' %}
+                    Confirmada
+                    {% elif status == 'pending' %}
+                    Pendiente
+                    {% elif status == 'cancelled' %}
+                    Cancelada
+                    {% else %}
+                    {{ status }}
+                    {% endif %}
+                </td>
             </tr>
         </table>
         <p>Estamos aquí para ayudarle. Si tiene alguna pregunta o necesita asistencia, no dude en contactarnos.</p>
-        <a href="mailto:support@hotelescolombia.com" class="cta-button">Contactar Soporte</a>
+        <a href="mailto:support@hostmaster.com" class="cta-button">Contactar Soporte</a>
     </div>
     <div class="footer">
         <p>© 2025 HostMaster. Todos los derechos reservados.</p>

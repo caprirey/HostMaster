@@ -184,7 +184,7 @@ async def create_reservation(db: AsyncSession, reservation_data: ReservationBase
     if target_user.email:
         reservation_details = {
             "title": "Confirmación de Reserva",
-            "message": "¡Gracias por elegir HostMaster! Su reserva ha sido confirmada con éxito.",
+            "message": "¡Gracias por elegir HostMaster! Su reserva ha sido creada con éxito.",
             "reservation_id": reservation.id,
             "accommodation_name": accommodation.name,
             "room_number": room.number,
