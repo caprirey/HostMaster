@@ -11,6 +11,7 @@ from app.routes.hotel import router as hotel_router
 from app.routes.admin import router as admin_router
 from app.seeds.seeder import seed_database
 from app.config.settings import STATIC_DIR, IMAGES_DIR
+from app.services.hotel.scheduler import setup_scheduler, scheduler  # Importar scheduler
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -42,15 +43,29 @@ except Exception as e:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    # Inicializar base de datos
     await init_db()
+
+    # Crear generador de sesión
     db_gen = get_db()
     db = await anext(db_gen)
+
     try:
+        # Ejecutar seeding
         await seed_database(db)
+
+        # Iniciar scheduler con la sesión
+        setup_scheduler(db)
+
         yield
     finally:
+        # Cerrar sesión y generador
         await db_gen.aclose()
-    await engine.dispose()
+        # Apagar scheduler
+        scheduler.shutdown()
+        logger.info("Scheduler apagado")
+        # Cerrar conexión a la base de datos
+        await engine.dispose()
 
 app = FastAPI(
     lifespan=lifespan,
