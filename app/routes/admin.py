@@ -12,6 +12,17 @@ from app.services.admin.admin import (
     get_users_by_role_service
 )
 import json
+from datetime import datetime
+from app.services.hotel.stats import (
+    calculate_occupancy,
+    estimate_revenue,
+    get_reviews_summary,
+    calculate_performance,
+    recent_activity,
+    get_maintenance_summary,
+    daily_metrics,
+    top_revenue_days_by_weekday, accommodation_summary
+)
 
 router = APIRouter()
 
@@ -182,7 +193,7 @@ async def update_user_admin(
         role: Annotated[str | None, Form(description="Rol del usuario (opcional)")] = None,
         password: Annotated[str | None, Form(description="Nueva contraseña (opcional)")] = None,
         accommodation_ids: Annotated[str | None, Form(description="JSON con IDs de alojamientos (opcional)")] = None,
-        phone_number: Annotated[str | None, Form(description="Número de teléfono (opcional, formato: +573001234567)")] = None,  # Añadido
+        phone_number: Annotated[str | None, Form(description="Número de teléfono (opcional, formato: +573001234567)")] = None,
         image: Annotated[UploadFile | None, File(description="Imagen de perfil (opcional, JPG, JPEG, PNG). Omita este campo si no se sube un archivo.")] = None
 ):
     print(f"Updating user {username} by user: {auth_user.username}, role: {auth_user.role}")
@@ -207,7 +218,7 @@ async def update_user_admin(
         role=role,
         password=password,
         accommodation_ids=accommodation_ids_list,
-        phone_number=phone_number,  # Añadido
+        phone_number=phone_number,
         image=None
     )
 
@@ -234,3 +245,218 @@ async def delete_user_admin(
     print(f"Deleting user {username} by user: {auth_user.username}, role: {auth_user.role}")
     await delete_user_service(db, username)
     return None
+
+# Nuevas rutas del dashboard
+@router.get(
+    "/dashboard/occupancy",
+    summary="Obtener tasa de ocupación",
+    description="Devuelve el porcentaje de ocupación y datos de reservas activas para un alojamiento en un período. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Datos de ocupación obtenidos exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_occupancy(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching occupancy for accommodation {accommodation_id} by user: {current_user.username}")
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+    return await calculate_occupancy(db, accommodation_id, start, end)
+
+@router.get(
+    "/dashboard/revenue",
+    summary="Obtener ingresos estimados",
+    description="Devuelve una estimación de ingresos basada en precios de habitaciones y servicios extra para un alojamiento en un período. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Ingresos estimados obtenidos exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_revenue(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching revenue for accommodation {accommodation_id} by user: {current_user.username}")
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+    return await estimate_revenue(db, accommodation_id, start, end)
+
+@router.get(
+    "/dashboard/reviews",
+    summary="Obtener resumen de reseñas",
+    description="Devuelve el promedio de calificaciones y las reseñas recientes para un alojamiento. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Resumen de reseñas obtenido exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_reviews(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        limit: int = 5
+):
+    print(f"Fetching reviews for accommodation {accommodation_id} by user: {current_user.username}")
+    return await get_reviews_summary(db, accommodation_id, limit)
+
+@router.get(
+    "/dashboard/performance",
+    summary="Obtener métricas de rendimiento",
+    description="Devuelve métricas como reservas por habitación y tasa de cancelaciones para un alojamiento en un período. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Métricas de rendimiento obtenidas exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_performance(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching performance for accommodation {accommodation_id} by user: {current_user.username}")
+    start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+    end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+    return await calculate_performance(db, accommodation_id, start, end)
+
+@router.get(
+    "/dashboard/recent-activity",
+    summary="Obtener actividad reciente",
+    description="Devuelve las últimas reservas, check-ins y check-outs de hoy para un alojamiento. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Actividad reciente obtenida exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_recent_activity(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)]
+):
+    print(f"Fetching recent activity for accommodation {accommodation_id} by user: {current_user.username}")
+    return await recent_activity(db, accommodation_id)
+
+@router.get(
+    "/dashboard/maintenance",
+    summary="Obtener resumen de mantenimiento",
+    description="Devuelve las tareas de mantenimiento pendientes o en progreso para un alojamiento. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Resumen de mantenimiento obtenido exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"}
+    },
+)
+async def get_maintenance(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)]
+):
+    print(f"Fetching maintenance for accommodation {accommodation_id} by user: {current_user.username}")
+    return await get_maintenance_summary(db, accommodation_id)
+
+@router.get(
+    "/dashboard/daily-metrics",
+    summary="Obtener métricas diarias",
+    description="Devuelve ingresos estimados, habitaciones ocupadas, tasa de ocupación, reservas y problemas de mantenimiento por día para un alojamiento en un período. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Métricas diarias obtenidas exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"},
+        400: {"description": "Formato de fecha inválido"}
+    },
+)
+async def get_daily_metrics(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching daily metrics for accommodation {accommodation_id} by user: {current_user.username}")
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+        end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de fecha inválido, use YYYY-MM-DD"
+        )
+    return await daily_metrics(db, accommodation_id, start, end)
+
+
+
+@router.get(
+    "/dashboard/top-revenue-days-by-weekday",
+    summary="Obtener días de la semana más rentables",
+    description="Devuelve los días de la semana (lunes a domingo) con mayores ingresos promedio estimados para un alojamiento en un período, ordenados de mayor a menor. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Días de la semana más rentables obtenidos exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"},
+        400: {"description": "Formato de fecha inválido o start_date mayor a end_date"}
+    },
+)
+async def get_top_revenue_days_by_weekday(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching top revenue days by weekday for accommodation {accommodation_id} by user: {current_user.username}, period: {start_date} to {end_date}")
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+        end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+        if start and end and start > end:
+            raise HTTPException(status_code=400, detail="start_date debe ser menor o igual a end_date")
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de fecha inválido, use YYYY-MM-DD"
+        )
+    return await top_revenue_days_by_weekday(db, accommodation_id, start, end)
+
+@router.get(
+    "/dashboard/summary",
+    summary="Obtener resumen de métricas del alojamiento",
+    description="Devuelve un resumen de métricas como ocupación, ingresos por tipo de habitación, servicios adicionales, reservas y mantenimientos para un alojamiento en un período. Solo accesible para usuarios con rol 'admin' o 'employee'.",
+    responses={
+        200: {"description": "Resumen obtenido exitosamente"},
+        403: {"description": "No autorizado (requiere rol admin o employee)"},
+        401: {"description": "No autenticado o token inválido"},
+        400: {"description": "Formato de fecha inválido o start_date mayor a end_date"}
+    },
+)
+async def get_accommodation_summary(
+        accommodation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_admin_or_employee_user)],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+):
+    print(f"Fetching summary for accommodation {accommodation_id} by user: {current_user.username}, period: {start_date} to {end_date}")
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date() if start_date else None
+        end = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+        if start and end and start > end:
+            raise HTTPException(status_code=400, detail="start_date debe ser menor o igual a end_date")
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Formato de fecha inválido, use YYYY-MM-DD"
+        )
+    return await accommodation_summary(db, accommodation_id, start, end)

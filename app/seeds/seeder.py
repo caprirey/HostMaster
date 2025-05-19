@@ -12,7 +12,7 @@ from app.models.sqlalchemy_models import (
 from app.utils.auth import get_password_hash
 from app.config.settings import STATIC_DIR, IMAGES_DIR
 from datetime import date, timedelta, datetime
-from random import randint
+from random import randint, shuffle, sample
 
 async def seed_database(db: AsyncSession):
     result = await db.execute(select(UserTable))
@@ -31,7 +31,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("admin123"),
         disabled=False,
         role="admin",
-        image=os.path.join(STATIC_DIR, "users", "user_admin.png").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_admin.png').replace(os.sep, '/')}",
         phone_number="+573183894217"
     )
     user1 = UserTable(
@@ -44,7 +44,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("maria"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_mujer.jpg').replace(os.sep, '/')}",
         phone_number="+573112512612"
     )
     employee = UserTable(
@@ -57,7 +57,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("camilo"),
         disabled=False,
         role="employee",
-        image=os.path.join(STATIC_DIR, IMAGES_DIR, "user_hombre.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'user_hombre.jpg').replace(os.sep, '/')}",
         phone_number="+573044315484"
     )
     user2 = UserTable(
@@ -70,7 +70,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("juan123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_hombre.jpg').replace(os.sep, '/')}",
         phone_number="+573044315484"
     )
     user3 = UserTable(
@@ -83,7 +83,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("sofia123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_mujer.jpg').replace(os.sep, '/')}",
         phone_number="+573044315484"
     )
     user4 = UserTable(
@@ -96,7 +96,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("pedro123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_hombre.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_hombre.jpg').replace(os.sep, '/')}",
         phone_number="+573044315484"
     )
     user5 = UserTable(
@@ -109,7 +109,7 @@ async def seed_database(db: AsyncSession):
         hashed_password=get_password_hash("laura123"),
         disabled=False,
         role="client",
-        image=os.path.join(STATIC_DIR, "users", "user_mujer.jpg").replace(os.sep, "/"),
+        image=f"/{os.path.join(STATIC_DIR, 'users', 'user_mujer.jpg').replace(os.sep, '/')}",
         phone_number="+573044315484"
     )
     db.add_all([admin_user, user1, employee, user2, user3, user4, user5])
@@ -223,98 +223,254 @@ async def seed_database(db: AsyncSession):
     db.add_all([sencilla, doble, familiar])
     await db.flush()
 
+    # Servicios Extra
+    breakfast = ExtraService(
+        name="Desayuno",
+        description="Desayuno continental",
+        price=15000
+    )
+    parking = ExtraService(
+        name="Parqueadero",
+        description="Estacionamiento privado",
+        price=20000
+    )
+    wifi = ExtraService(
+        name="WiFi Premium",
+        description="Internet de alta velocidad",
+        price=10000
+    )
+    spa = ExtraService(
+        name="Spa",
+        description="Sesión de spa relajante",
+        price=50000
+    )
+    db.add_all([breakfast, parking, wifi, spa])
+    await db.flush()
+
     # Habitaciones
     rooms = []
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 60000 if i <= 4 else (80000 if i <= 7 else 120000)
-        rooms.append(Room(
-            accommodation_id=hotel_poblado.id,
-            type_id=room_type_id,
-            number=f"{100 + i}",
-            price=price,
-            isAvailable=True
-        ))
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 65000 if i <= 4 else (85000 if i <= 7 else 130000)
-        rooms.append(Room(
-            accommodation_id=hotel_tequendama.id,
-            type_id=room_type_id,
-            number=f"{200 + i}",
-            price=price,
-            isAvailable=True
-        ))
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 70000 if i <= 4 else (90000 if i <= 7 else 140000)
-        rooms.append(Room(
-            accommodation_id=hotel_casa_luz.id,
-            type_id=room_type_id,
-            number=f"{300 + i}",
-            price=price,
-            isAvailable=True
-        ))
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 62000 if i <= 4 else (82000 if i <= 7 else 125000)
-        rooms.append(Room(
-            accommodation_id=hotel_verde_valle.id,
-            type_id=room_type_id,
-            number=f"{400 + i}",
-            price=price,
-            isAvailable=True
-        ))
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 68000 if i <= 4 else (88000 if i <= 7 else 135000)
-        rooms.append(Room(
-            accommodation_id=hotel_jardin_secreto.id,
-            type_id=room_type_id,
-            number=f"{500 + i}",
-            price=price,
-            isAvailable=True
-        ))
-    for i in range(1, 11):
-        room_type_id = sencilla.id if i <= 4 else (doble.id if i <= 7 else familiar.id)
-        price = 67000 if i <= 4 else (87000 if i <= 7 else 132000)
-        rooms.append(Room(
-            accommodation_id=hotel_cielo_abierto.id,
-            type_id=room_type_id,
-            number=f"{600 + i}",
-            price=price,
-            isAvailable=True
-        ))
+
+    # Hotel El Poblado Plaza: 30 habitaciones, 3 pisos (8 Sencillas, 12 Dobles, 10 Familiares)
+    for floor in range(1, 4):
+        for i in range(1, 11):  # 10 habitaciones por piso
+            room_num = f"{floor}{i:02d}"  # e.g., 101, 102, ..., 310
+            if i <= 3 and floor <= 3:  # Sencillas (8 en total)
+                room_type_id = sencilla.id
+                price = 80000
+            elif i <= 6:  # Dobles (12 en total)
+                room_type_id = doble.id
+                price = 110000
+            else:  # Familiares (10 en total)
+                room_type_id = familiar.id
+                price = 160000
+            rooms.append(Room(
+                accommodation_id=hotel_poblado.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
+    # Hotel Tequendama: 30 habitaciones, 3 pisos (7 Sencillas, 13 Dobles, 10 Familiares)
+    for floor in range(1, 4):
+        for i in range(1, 11):  # 10 habitaciones por piso
+            room_num = f"{floor}{i:02d}"
+            if i <= 3 and floor <= 3:  # Sencillas (7 en total, omitiendo una)
+                room_type_id = sencilla.id if i != 3 or floor != 3 else doble.id
+                price = 70000 if room_type_id == sencilla.id else 95000
+            elif i <= 6:  # Dobles (13 en total)
+                room_type_id = doble.id
+                price = 95000
+            else:  # Familiares (10 en total)
+                room_type_id = familiar.id
+                price = 140000
+            rooms.append(Room(
+                accommodation_id=hotel_tequendama.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
+    # Casa de la Luz: 20 habitaciones, 2 pisos (5 Sencillas, 8 Dobles, 7 Familiares)
+    for floor in range(1, 3):
+        for i in range(1, 11):  # 10 habitaciones por piso
+            room_num = f"{floor}{i:02d}"
+            if i <= 3 and floor == 1:  # Sencillas (5 en total)
+                room_type_id = sencilla.id
+                price = 90000
+            elif i <= 6:  # Dobles (8 en total)
+                room_type_id = doble.id
+                price = 130000
+            else:  # Familiares (7 en total)
+                room_type_id = familiar.id
+                price = 180000
+            rooms.append(Room(
+                accommodation_id=hotel_casa_luz.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
+    # Verde Valle: 25 habitaciones, 3 pisos (6 Sencillas, 10 Dobles, 9 Familiares)
+    for floor in range(1, 4):
+        for i in range(1, 9 if floor == 3 else 11):  # 10 habitaciones en pisos 1-2, 5 en piso 3
+            room_num = f"{floor}{i:02d}"
+            if i <= 3 and floor <= 2:  # Sencillas (6 en total)
+                room_type_id = sencilla.id
+                price = 75000
+            elif i <= 6:  # Dobles (10 en total)
+                room_type_id = doble.id
+                price = 100000
+            else:  # Familiares (9 en total)
+                room_type_id = familiar.id
+                price = 150000
+            rooms.append(Room(
+                accommodation_id=hotel_verde_valle.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
+    # Jardín Secreto: 22 habitaciones, 2 pisos (5 Sencillas, 9 Dobles, 8 Familiares)
+    for floor in range(1, 3):
+        for i in range(1, 12 if floor == 1 else 11):  # 11 habitaciones en piso 1, 11 en piso 2
+            room_num = f"{floor}{i:02d}"
+            if i <= 3 and floor == 1:  # Sencillas (5 en total)
+                room_type_id = sencilla.id
+                price = 85000
+            elif i <= 6:  # Dobles (9 en total)
+                room_type_id = doble.id
+                price = 120000
+            else:  # Familiares (8 en total)
+                room_type_id = familiar.id
+                price = 170000
+            rooms.append(Room(
+                accommodation_id=hotel_jardin_secreto.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
+    # Cielo Abierto: 28 habitaciones, 3 pisos (7 Sencillas, 11 Dobles, 10 Familiares)
+    for floor in range(1, 4):
+        for i in range(1, 10 if floor == 3 else 11):  # 10 habitaciones en pisos 1-2, 8 en piso 3
+            room_num = f"{floor}{i:02d}"
+            if i <= 3 and floor <= 3:  # Sencillas (7 en total)
+                room_type_id = sencilla.id
+                price = 78000
+            elif i <= 6:  # Dobles (11 en total)
+                room_type_id = doble.id
+                price = 105000
+            else:  # Familiares (10 en total)
+                room_type_id = familiar.id
+                price = 155000
+            rooms.append(Room(
+                accommodation_id=hotel_cielo_abierto.id,
+                type_id=room_type_id,
+                number=room_num,
+                price=price,
+                isAvailable=True
+            ))
+
     db.add_all(rooms)
     await db.flush()
 
-    # Reservas
+    # Reservas y Servicios Extra
     reservations = []
-    base_date = date(2025, 5, 1)
+    reservation_extra_entries = []
     client_usernames = ["maria", "juan", "sofia", "pedro", "laura"]
-    statuses = ["confirmed", "pending", "cancelled"]
     accommodations = [hotel_poblado, hotel_tequendama, hotel_casa_luz, hotel_verde_valle, hotel_jardin_secreto, hotel_cielo_abierto]
+    start_month = date(2025, 5, 1)
+    end_month = date(2025, 5, 31)
+    max_reservations_per_day = 5  # Máximo de reservas por día por alojamiento
+    extra_services = [breakfast, parking, wifi, spa]  # Servicios extra disponibles
 
     for accom in accommodations:
         accom_rooms = [r for r in rooms if r.accommodation_id == accom.id]
-        for i in range(10):
-            room = accom_rooms[i % len(accom_rooms)]
-            start_date = base_date + timedelta(days=i * 7)
-            end_date = start_date + timedelta(days=3)
-            client_index = (i % 5)
-            status_index = i % 3
-            guest_count = 1 if room.type_id == sencilla.id else (2 if room.type_id == doble.id else 4)
-            reservations.append(Reservation(
-                user_username=client_usernames[client_index],
-                room_id=room.id,
-                accommodation_id=accom.id,
-                start_date=start_date,
-                end_date=end_date,
-                guest_count=guest_count,
-                status=statuses[status_index],
-                observations=f"Reserva {i + 1} para habitación {room.number} en {accom.name}"
-            ))
+        # Mapa para rastrear ocupación de habitaciones por día
+        room_availability = {room.id: [] for room in accom_rooms}
+
+        for day in range((end_month - start_month).days + 1):
+            current_date = start_month + timedelta(days=day)
+            num_reservations = randint(1, max_reservations_per_day)  # Entre 1 y 5 reservas por día
+
+            # Mezclar habitaciones para asignación aleatoria
+            available_rooms = accom_rooms.copy()
+            shuffle(available_rooms)
+
+            for _ in range(min(num_reservations, len(available_rooms))):
+                # Seleccionar una habitación disponible
+                for room in available_rooms:
+                    # Verificar si la habitación está libre para las fechas
+                    stay_length = randint(1, 7)  # Estadía entre 1 y 7 noches
+                    start_date = current_date
+                    end_date = start_date + timedelta(days=stay_length)
+
+                    if end_date > end_month:
+                        end_date = end_month
+                        stay_length = (end_date - start_date).days or 1
+
+                    # Comprobar conflictos
+                    conflict = False
+                    for reserved_start, reserved_end in room_availability[room.id]:
+                        if not (end_date < reserved_start or start_date > reserved_end):
+                            conflict = True
+                            break
+
+                    if conflict:
+                        continue
+
+                    # Habitación disponible, crear reserva
+                    guest_count = 1 if room.type_id == sencilla.id else (2 if room.type_id == doble.id else 4)
+                    status = "confirmed" if randint(1, 100) <= 90 else "pending"
+
+                    reservation = Reservation(
+                        user_username=client_usernames[randint(0, len(client_usernames) - 1)],
+                        room_id=room.id,
+                        accommodation_id=accom.id,
+                        start_date=start_date,
+                        end_date=end_date,
+                        guest_count=guest_count,
+                        status=status,
+                        observations=f"Reserva para habitación {room.number} en {accom.name} desde {start_date}"
+                    )
+                    reservations.append(reservation)
+
+                    # Marcar habitación como ocupada
+                    room_availability[room.id].append((start_date, end_date))
+                    available_rooms.remove(room)
+
+                    # Asignar servicios extra con 50% de probabilidad
+                    if randint(1, 100) <= 50:
+                        num_services = randint(1, 2)  # 1 o 2 servicios extra
+                        selected_services = sample(extra_services, num_services)
+                        for service in selected_services:
+                            reservation_extra_entries.append({
+                                "reservation_id": None,  # Se actualizará después
+                                "extra_service_id": service.id
+                            })
+
+                    break  # Pasar a la siguiente reserva
+
+    # Agregar reservas a la base de datos
     db.add_all(reservations)
+    await db.flush()
+
+    # Actualizar reservation_id en servicios extra
+    for i, entry in enumerate(reservation_extra_entries):
+        if i < len(reservations):
+            entry["reservation_id"] = reservations[i].id
+            await db.execute(
+                reservation_extra_service.insert().values(
+                    reservation_id=entry["reservation_id"],
+                    extra_service_id=entry["extra_service_id"]
+                )
+            )
+
     await db.flush()
 
     # Mantenimientos
@@ -325,9 +481,9 @@ async def seed_database(db: AsyncSession):
             priority=MaintenancePriority.HIGH,
             room_id=[r.id for r in rooms if r.accommodation_id == hotel_poblado.id and r.number == "101"][0],
             accommodation_id=hotel_poblado.id,
-            created_by="camilo",  # Employee
+            created_by="camilo",
             assigned_to="camilo",
-            created_at=date(2025, 5, 17),  # Formato YYYY-MM-DD como datetime
+            created_at=date(2025, 5, 17),
             updated_at=date(2025, 5, 17)
         ),
         Maintenance(
@@ -336,20 +492,20 @@ async def seed_database(db: AsyncSession):
             priority=MaintenancePriority.MEDIUM,
             room_id=[r.id for r in rooms if r.accommodation_id == hotel_tequendama.id and r.number == "205"][0],
             accommodation_id=hotel_tequendama.id,
-            created_by="admin",  # Admin
+            created_by="admin",
             assigned_to="camilo",
-            created_at=date(2025, 5, 15),  # Dos días antes
+            created_at=date(2025, 5, 15),
             updated_at=date(2025, 5, 17)
         ),
         Maintenance(
             description="Limpiar alfombra manchada",
             status=MaintenanceStatus.PENDING,
             priority=MaintenancePriority.LOW,
-            room_id=[r.id for r in rooms if r.accommodation_id == hotel_casa_luz.id and r.number == "308"][0],
+            room_id=[r.id for r in rooms if r.accommodation_id == hotel_casa_luz.id and r.number == "108"][0],
             accommodation_id=hotel_casa_luz.id,
-            created_by="admin",  # Admin
+            created_by="admin",
             assigned_to="camilo",
-            created_at=date(2025, 5, 12),  # Cinco días antes
+            created_at=date(2025, 5, 12),
             updated_at=date(2025, 5, 17)
         ),
     ]
@@ -360,12 +516,12 @@ async def seed_database(db: AsyncSession):
     images = []
 
     # Imágenes para alojamientos
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_0.jpg").replace(os.sep, "/"), accommodation_id=hotel_poblado.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_1.jpg").replace(os.sep, "/"), accommodation_id=hotel_tequendama.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_2.jpg").replace(os.sep, "/"), accommodation_id=hotel_casa_luz.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_3.jpg").replace(os.sep, "/"), accommodation_id=hotel_verde_valle.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_4.jpg").replace(os.sep, "/"), accommodation_id=hotel_jardin_secreto.id))
-    images.append(Image(url=os.path.join(STATIC_DIR, IMAGES_DIR, "hotel_5.jpg").replace(os.sep, "/"), accommodation_id=hotel_cielo_abierto.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_0.jpg').replace(os.sep, '/')}", accommodation_id=hotel_poblado.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_1.jpg').replace(os.sep, '/')}", accommodation_id=hotel_tequendama.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_2.jpg').replace(os.sep, '/')}", accommodation_id=hotel_casa_luz.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_3.jpg').replace(os.sep, '/')}", accommodation_id=hotel_verde_valle.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_4.jpg').replace(os.sep, '/')}", accommodation_id=hotel_jardin_secreto.id))
+    images.append(Image(url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, 'hotel_5.jpg').replace(os.sep, '/')}", accommodation_id=hotel_cielo_abierto.id))
 
     # Imágenes para habitaciones
     sencilla_images = [
@@ -396,21 +552,21 @@ async def seed_database(db: AsyncSession):
         for i, room in enumerate(sencilla_rooms):
             image_name = sencilla_images[i % len(sencilla_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
+                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
                 room_id=room.id
             ))
 
         for i, room in enumerate(doble_rooms):
             image_name = doble_images[i % len(doble_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
+                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
                 room_id=room.id
             ))
 
         for i, room in enumerate(familiar_rooms):
             image_name = familiar_images[i % len(familiar_images)]
             images.append(Image(
-                url=os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, "/"),
+                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
                 room_id=room.id
             ))
 
@@ -546,55 +702,7 @@ async def seed_database(db: AsyncSession):
             created_at=datetime.utcnow() - timedelta(days=randint(91, 180))
         ),
     ]
-
     db.add_all(reviews)
-    await db.flush()
-
-    # Servicios Extra
-    breakfast = ExtraService(
-        name="Desayuno",
-        description="Desayuno continental",
-        price=15000
-    )
-    parking = ExtraService(
-        name="Parqueadero",
-        description="Estacionamiento privado",
-        price=20000
-    )
-    wifi = ExtraService(
-        name="WiFi Premium",
-        description="Internet de alta velocidad",
-        price=10000
-    )
-    spa = ExtraService(
-        name="Spa",
-        description="Sesión de spa relajante",
-        price=50000
-    )
-    db.add_all([breakfast, parking, wifi, spa])
-    await db.flush()
-
-    # Relación Reservation-ExtraService
-    reservation_extra_1 = reservation_extra_service.insert().values(
-        reservation_id=reservations[0].id,
-        extra_service_id=breakfast.id
-    )
-    reservation_extra_2 = reservation_extra_service.insert().values(
-        reservation_id=reservations[1].id,
-        extra_service_id=parking.id
-    )
-    reservation_extra_3 = reservation_extra_service.insert().values(
-        reservation_id=reservations[2].id,
-        extra_service_id=wifi.id
-    )
-    reservation_extra_4 = reservation_extra_service.insert().values(
-        reservation_id=reservations[3].id,
-        extra_service_id=spa.id
-    )
-    await db.execute(reservation_extra_1)
-    await db.execute(reservation_extra_2)
-    await db.execute(reservation_extra_3)
-    await db.execute(reservation_extra_4)
     await db.flush()
 
     # Productos
