@@ -560,19 +560,22 @@ async def seed_database(db: AsyncSession):
         "habitacion_sencilla_0.jpg",
         "habitacion_sencilla_1.jpg",
         "habitacion_sencilla_2.jpg",
-        "habitacion_sencilla_3.jpg"
+        "habitacion_sencilla_3.jpg",
+        "habitacion_sencilla_4.jpg"
     ]
     doble_images = [
         "habitacion_doble_0.jpg",
         "habitacion_doble_1.jpg",
         "habitacion_doble_2.jpg",
-        "habitacion_doble_3.jpg"
+        "habitacion_doble_3.jpg",
+        "habitacion_doble_4.jpg"
     ]
     familiar_images = [
         "habitacion_familiar_0.jpg",
         "habitacion_familiar_1.jpg",
         "habitacion_familiar_2.jpg",
-        "habitacion_familiar_3.jpg"
+        "habitacion_familiar_3.jpg",
+        "habitacion_familiar_4.jpg"
     ]
 
     for accom in accommodations:
@@ -581,26 +584,29 @@ async def seed_database(db: AsyncSession):
         doble_rooms = [r for r in accom_rooms if r.type_id == doble.id]
         familiar_rooms = [r for r in accom_rooms if r.type_id == familiar.id]
 
-        for i, room in enumerate(sencilla_rooms):
-            image_name = sencilla_images[i % len(sencilla_images)]
-            images.append(Image(
-                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
-                room_id=room.id
-            ))
+        # Asignar las 5 imágenes a cada habitación sencilla
+        for room in sencilla_rooms:
+            for image_name in sencilla_images:
+                images.append(Image(
+                    url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
+                    room_id=room.id
+                ))
 
-        for i, room in enumerate(doble_rooms):
-            image_name = doble_images[i % len(doble_images)]
-            images.append(Image(
-                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
-                room_id=room.id
-            ))
+        # Asignar las 5 imágenes a cada habitación doble
+        for room in doble_rooms:
+            for image_name in doble_images:
+                images.append(Image(
+                    url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
+                    room_id=room.id
+                ))
 
-        for i, room in enumerate(familiar_rooms):
-            image_name = familiar_images[i % len(familiar_images)]
-            images.append(Image(
-                url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
-                room_id=room.id
-            ))
+        # Asignar las 5 imágenes a cada habitación familiar
+        for room in familiar_rooms:
+            for image_name in familiar_images:
+                images.append(Image(
+                    url=f"/{os.path.join(STATIC_DIR, IMAGES_DIR, image_name).replace(os.sep, '/')}",
+                    room_id=room.id
+                ))
 
     db.add_all(images)
     await db.flush()
