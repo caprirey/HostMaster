@@ -1,5 +1,5 @@
 from typing import Annotated, List, Optional
-from fastapi import APIRouter, Depends, Query, UploadFile, File, status
+from fastapi import APIRouter, Depends, Query, UploadFile, File, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
 
@@ -34,6 +34,8 @@ from app.services.hotel.room import get_rooms_by_accommodation
 from app.services.hotel.maintenance import (  # Nuevos servicios para mantenimientos
     create_maintenance, get_maintenances, update_maintenance, delete_maintenance
 )
+from app.services.hotel.reservation import calculate_reservation_invoice  # Importar la nueva función
+
 router = APIRouter()
 
 # --- Countries ---
@@ -155,7 +157,6 @@ async def get_accommodation(
     """Obtiene un alojamiento por su ID. Accesible para admin, empleados asociados y clientes."""
     return await accommodation.get_accommodation_by_id(db, accommodation_id, current_user.username)
 
-
 @router.get("/accommodations/{accommodation_id}", response_model=Accommodation, tags=["Accommodations"])
 async def get_accommodation(
         accommodation_id: int,
@@ -163,8 +164,6 @@ async def get_accommodation(
         current_user: UserTable = Depends(get_current_active_user)
 ):
     return await get_accommodation_by_id(db, accommodation_id, current_user.username)
-
-
 
 # --- Room Types ---
 @router.post("/room-types/", response_model=RoomType, status_code=status.HTTP_201_CREATED, tags=["Room Types"], summary="Create a room type")
@@ -319,6 +318,21 @@ async def delete_reservation_route(
     """Delete a reservation."""
     await reservation.delete_reservation(db, reservation_id, current_user.username)
     return None
+
+@router.get("/reservations/{reservation_id}/invoice", response_model=dict, tags=["Reservations"], summary="Get reservation invoice")
+async def get_reservation_invoice(
+        reservation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Retrieve the invoice details for a specific reservation, including cost breakdown."""
+    try:
+        invoice_data = await calculate_reservation_invoice(db, reservation_id, current_user.username)
+        return invoice_data
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating invoice: {str(e)}")
 
 # --- Images ---
 @router.post("/images/", response_model=Image, tags=["Images"], summary="Upload a single image")
@@ -541,7 +555,7 @@ async def delete_room_inventory_route(
     await room_inventory.delete_room_inventory(db, inventory_id, current_user.username)
     return None
 
-################### products
+# --- Products ---
 @router.post("/products/", response_model=Product, tags=["Products"], summary="Create a new product")
 async def create_product_route(
         product_data: ProductCreate,
@@ -579,7 +593,7 @@ async def delete_product_route(
     await delete_product(db, product_id, current_user.username)
     return None
 
-#################### ROOM PRODUCTS #################################
+# --- Room Products ---
 @router.get("/room-products/associations/{room_id}/", response_model=List[RoomProduct], tags=["Room Products"], summary="Get room-product associations for a room")
 async def get_room_products_associations_route(
         room_id: int,
@@ -588,7 +602,6 @@ async def get_room_products_associations_route(
 ):
     """Retrieve all room-product associations for a specific room."""
     return await get_room_products(db, room_id, current_user.username)
-
 
 @router.post("/room-products/associations/", response_model=RoomProduct, tags=["Room Products"], summary="Create a room-product association")
 async def create_room_product_route(
@@ -610,7 +623,6 @@ async def update_room_product_route(
     """Update an existing room-product association."""
     return await update_room_product(db, room_id, product_id, room_product_data, current_user.username)
 
-
 @router.delete("/room-products/associations/{room_id}/{product_id}/", status_code=status.HTTP_204_NO_CONTENT, tags=["Room Products"], summary="Delete a room-product association")
 async def delete_room_product_route(
         room_id: int,
@@ -622,7 +634,6 @@ async def delete_room_product_route(
     await delete_room_product(db, room_id, product_id, current_user.username)
     return None
 
-
 @router.get("/rooms/{room_id}/product-details/", response_model=List[RoomProductDetails], tags=["Room Products"], summary="Get detailed products for a room")
 async def get_room_product_details_route(
         room_id: int,
@@ -632,9 +643,6 @@ async def get_room_product_details_route(
     """Retrieve all products assigned to a specific room with quantity and restock details."""
     return await get_room_product_details(db, room_id, current_user.username)
 
-
-# app/routers/hotel.py
-
 @router.get("/rooms/{room_id}", response_model=Room, tags=["Rooms"], summary="Get a room by ID")
 async def get_room_by_id_route(
         room_id: int,
@@ -643,8 +651,6 @@ async def get_room_by_id_route(
 ):
     """Retrieve details of a specific room by its ID."""
     return await room.get_room_by_id(db, room_id, current_user.username)
-
-
 
 # --- Maintenances ---
 @router.post("/maintenances/", response_model=Maintenance, status_code=status.HTTP_201_CREATED, tags=["Maintenances"], summary="Create a new maintenance request")

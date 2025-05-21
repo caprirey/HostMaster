@@ -12,7 +12,8 @@ from app.models.sqlalchemy_models import (
 )
 from sqlalchemy.orm import selectinload
 from app.utils.email import send_reservation_confirmation
-from datetime import timedelta
+from datetime import timedelta, datetime
+from typing import Dict, Any
 import logging
 import asyncio
 
@@ -491,3 +492,129 @@ async def delete_reservation(db: AsyncSession, reservation_id: int, username: st
 
     await db.delete(db_reservation)
     await db.commit()
+
+async def calculate_reservation_invoice(
+        db: AsyncSession,
+        reservation_id: int,
+        username: str
+) -> Dict[str, Any]:
+    """
+    Calcula el costo total de una reserva y devuelve los datos necesarios para generar una factura.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        reservation_id: ID de la reserva.
+        username: Nombre de usuario autenticado.
+
+    Returns:
+        Dict[str, Any]: Diccionario con los datos de la factura, incluyendo:
+            - Información del usuario (username, email, nombre completo, número de documento).
+            - Detalles del alojamiento y habitación.
+            - Fechas de la reserva (formato YYYY-MM-DD).
+            - Número de huéspedes y estado de la reserva.
+            - Desglose de costos: costo de la habitación, costo de servicios extras, costo total.
+
+    Raises:
+        HTTPException: Si la reserva, usuario, o alojamiento no existen, o si el usuario no tiene permisos.
+    """
+    # Validar usuario autenticado
+    result = await db.execute(select(UserTable).where(UserTable.username == username))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Consultar la reserva con relaciones necesarias
+    result = await db.execute(
+        select(ReservationTable)
+        .where(ReservationTable.id == reservation_id)
+        .options(
+            selectinload(ReservationTable.user),
+            selectinload(ReservationTable.room).selectinload(RoomTable.room_type),
+            selectinload(ReservationTable.accommodation),
+            selectinload(ReservationTable.extra_services)
+        )
+    )
+    reservation = result.scalar_one_or_none()
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+
+    # Validar permisos
+    if user.role == "client":
+        if reservation.user_username != username:
+            raise HTTPException(status_code=403, detail="Clients can only view their own reservations")
+    elif user.role == "employee":
+        # Empleados solo para reservas en alojamientos asociados
+        result = await db.execute(
+            select(Accommodation)
+            .join(Accommodation.users)
+            .where(
+                Accommodation.id == reservation.accommodation_id,
+                UserTable.username == username
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Employee not authorized for this accommodation")
+    # Admins tienen acceso total
+
+    # Calcular el número de noches
+    delta = reservation.end_date - reservation.start_date
+    number_of_nights = delta.days
+    if number_of_nights <= 0:
+        raise HTTPException(status_code=400, detail="Invalid reservation dates: end_date must be after start_date")
+
+    # Obtener el precio por noche de la habitación
+    price_per_night = reservation.room.price
+    room_cost = price_per_night * number_of_nights
+
+    # Calcular el costo de los servicios extras
+    extra_services_cost = 0
+    extra_services_details = []
+    for service in reservation.extra_services:
+        service_cost = service.price or 0
+        extra_services_cost += service_cost
+        extra_services_details.append({
+            "service_name": service.name,
+            "price": service_cost
+        })
+
+    # Calcular el costo total
+    total_cost = room_cost + extra_services_cost
+
+    # Preparar los datos de la factura
+    invoice_data = {
+        "reservation_id": reservation.id,
+        "user": {
+            "username": reservation.user_username,
+            "email": reservation.user.email or "N/A",
+            "first_name": reservation.user.firstname,
+            "last_name": reservation.user.lastname,
+            "document_number": reservation.user.document_number
+        },
+        "accommodation": {
+            "name": reservation.accommodation.name,
+            "id": reservation.accommodation_id,
+            "address": reservation.accommodation.address
+        },
+        "room": {
+            "number": reservation.room.number,
+            "room_type": reservation.room.room_type.name,
+            "price_per_night": price_per_night
+        },
+        "reservation_details": {
+            "start_date": reservation.start_date.strftime("%Y-%m-%d"),
+            "end_date": reservation.end_date.strftime("%Y-%m-%d"),
+            "number_of_nights": number_of_nights,
+            "guest_count": reservation.guest_count,
+            "status": reservation.status,
+            "observations": reservation.observations or "N/A"
+        },
+        "cost_breakdown": {
+            "room_cost": room_cost,
+            "extra_services_cost": extra_services_cost,
+            "extra_services": extra_services_details,
+            "total_cost": total_cost
+        },
+        "generated_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    }
+
+    return invoice_data
