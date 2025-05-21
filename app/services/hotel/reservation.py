@@ -11,7 +11,7 @@ from app.models.sqlalchemy_models import (
     MaintenanceStatus
 )
 from sqlalchemy.orm import selectinload
-from app.utils.email import send_reservation_confirmation
+from app.utils.email import send_reservation_confirmation, send_invoice_email
 from datetime import timedelta, datetime
 from typing import Dict, Any
 import logging
@@ -618,3 +618,59 @@ async def calculate_reservation_invoice(
     }
 
     return invoice_data
+
+
+async def send_invoice_email_(db: AsyncSession, reservation_id: int, username: str) -> bool:
+    """
+    Envía un correo electrónico con los detalles de la factura de una reserva usando una plantilla HTML.
+
+    Args:
+        db: Sesión de base de datos asíncrona.
+        reservation_id: ID de la reserva.
+        username: Nombre de usuario autenticado.
+
+    Returns:
+        bool: True si el correo se envió o no se requiere envío (sin email), False si falló el envío.
+
+    Raises:
+        HTTPException: Si la reserva, usuario, o alojamiento no existen, o si el usuario no tiene permisos.
+    """
+    # Obtener los datos de la factura
+    invoice_data = await calculate_reservation_invoice(db, reservation_id, username)
+
+    # Consultar el usuario para obtener el email
+    result = await db.execute(
+        select(UserTable).where(UserTable.username == invoice_data["user"]["username"])
+    )
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Verificar si el usuario tiene un email
+    if not user.email:
+        logger.warning(f"No email found for user {user.username}. Skipping invoice email.")
+        return True
+
+    # Preparar los datos para la plantilla HTML
+    invoice_details = {
+        "title": "Factura de su Reserva en HostMaster",
+        "reservation_id": invoice_data["reservation_id"],
+        "user": invoice_data["user"],
+        "accommodation": invoice_data["accommodation"],
+        "room": invoice_data["room"],
+        "reservation_details": invoice_data["reservation_details"],
+        "cost_breakdown": invoice_data["cost_breakdown"],
+        "generated_at": invoice_data["generated_at"]
+    }
+
+    # Enviar el correo usando la función específica para facturas
+    try:
+        success = await send_invoice_email(user.email, invoice_details)
+        if not success:
+            logger.warning(f"Failed to send invoice email to {user.email} for reservation {reservation_id}")
+            return False
+        logger.info(f"Invoice email sent successfully to {user.email} for reservation {reservation_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error sending invoice email to {user.email} for reservation {reservation_id}: {str(e)}")
+        return False

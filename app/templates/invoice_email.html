@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} - HostMaster</title>
+  <style>
+    body { font-family: 'Roboto', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
+    .container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); overflow: hidden; }
+    .header { background: linear-gradient(90deg, #1e3a8a, #3b82f6); color: #ffffff; padding: 20px; text-align: center; }
+    .header h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: 1px; }
+    .header h2 { margin: 10px 0; font-size: 24px; font-weight: 500; }
+    .content { padding: 30px; }
+    .content p { margin: 0 0 15px; font-size: 16px; }
+    .details-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #f9fafb; border-radius: 6px; overflow: hidden; }
+    .details-table th, .details-table td { padding: 12px; text-align: left; font-size: 14px; border-bottom: 1px solid #e5e7eb; }
+    .details-table th { background: #e5e7eb; color: #1e3a8a; font-weight: 600; width: 40%; }
+    .details-table td { color: #374151; }
+    .cost-table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #f9fafb; border-radius: 6px; overflow: hidden; }
+    .cost-table th, .cost-table td { padding: 12px; text-align: left; font-size: 14px; border-bottom: 1px solid #e5e7eb; }
+    .cost-table th { background: #e5e7eb; color: #1e3a8a; font-weight: 600; width: 60%; }
+    .cost-table td { color: #374151; }
+    .cost-table .total { font-weight: 700; background: #e5e7eb; }
+    .cta-button { display: inline-block; padding: 12px 24px; background: #3b82f6; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 500; margin: 20px 0; transition: background 0.3s; }
+    .cta-button:hover { background: #1e3a8a; }
+    .footer { background: #1e3a8a; color: #d1d5db; text-align: center; padding: 20px; font-size: 12px; }
+    .footer a { color: #93c5fd; text-decoration: none; margin: 0 5px; }
+    .footer a:hover { text-decoration: underline; }
+    @media screen and (max-width: 600px) {
+        .container { margin: 10px; border-radius: 6px; }
+        .header { padding: 15px; }
+        .header h1 { font-size: 24px; }
+        .header h2 { font-size: 20px; }
+        .content { padding: 20px; }
+        .details-table th, .details-table td { font-size: 13px; padding: 10px; }
+        .cost-table th, .cost-table td { font-size: 13px; padding: 10px; }
+        .cta-button { width: 100%; text-align: center; padding: 10px; }
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>HostMaster</h1>
+    <h2>{{ title }}</h2>
+  </div>
+  <div class="content">
+    <p>Estimado/a {{ user.first_name }} {{ user.last_name }},</p>
+    <p>A continuación, encontrará los detalles de la factura para su reserva:</p>
+    <table class="details-table">
+      <tr>
+        <th>Código de Reserva</th>
+        <td>HM{{ reservation_id }}TR</td>
+      </tr>
+      <tr>
+        <th>Alojamiento</th>
+        <td>{{ accommodation.name }}</td>
+      </tr>
+      <tr>
+        <th>Dirección</th>
+        <td>{{ accommodation.address }}</td>
+      </tr>
+      <tr>
+        <th>Habitación</th>
+        <td>{{ room.number }} ({{ room.room_type }})</td>
+      </tr>
+      <tr>
+        <th>Fecha de Inicio</th>
+        <td>{{ reservation_details.start_date }}</td>
+      </tr>
+      <tr>
+        <th>Fecha de Fin</th>
+        <td>{{ reservation_details.end_date }}</td>
+      </tr>
+      <tr>
+        <th>Noches</th>
+        <td>{{ reservation_details.number_of_nights }}</td>
+      </tr>
+      <tr>
+        <th>Número de Huéspedes</th>
+        <td>{{ reservation_details.guest_count }}</td>
+      </tr>
+      <tr>
+        <th>Estado</th>
+        <td>
+          {% if reservation_details.status == 'confirmed' %}
+          Confirmada
+          {% elif reservation_details.status == 'pending' %}
+          Pendiente
+          {% elif reservation_details.status == 'cancelled' %}
+          Cancelada
+          {% else %}
+          {{ reservation_details.status }}
+          {% endif %}
+        </td>
+      </tr>
+      <tr>
+        <th>Observaciones</th>
+        <td>{{ reservation_details.observations }}</td>
+      </tr>
+      <tr>
+        <th>Fecha de Emisión</th>
+        <td>{{ generated_at }}</td>
+      </tr>
+    </table>
+    <h3>Desglose de Costos</h3>
+    <table class="cost-table">
+      <tr>
+        <th>Concepto</th>
+        <td>Costo</td>
+      </tr>
+      <tr>
+        <th>Habitación ({{ room.price_per_night | float | round(2) }} x {{ reservation_details.number_of_nights }} noches)</th>
+        <td>${{ cost_breakdown.room_cost | float | round(2) }}</td>
+      </tr>
+      {% if cost_breakdown.extra_services %}
+      {% for service in cost_breakdown.extra_services %}
+      <tr>
+        <th>{{ service.service_name }}</th>
+        <td>${{ service.price | float | round(2) }}</td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+      <tr>
+        <th>Servicios Extras (Total)</th>
+        <td>${{ cost_breakdown.extra_services_cost | float | round(2) }}</td>
+      </tr>
+      <tr class="total">
+        <th>Total</th>
+        <td>${{ cost_breakdown.total_cost | float | round(2) }}</td>
+      </tr>
+    </table>
+    <p>Gracias por elegir HostMaster. Si tiene alguna pregunta o necesita asistencia, no dude en contactarnos.</p>
+    <a href="mailto:support@hostmaster.com" class="cta-button">Contactar Soporte</a>
+  </div>
+  <div class="footer">
+    <p>© 2025 HostMaster. Todos los derechos reservados.</p>
+    <p>
+      <a href="https://www.hotelescolombia.com">Visita nuestro sitio</a> |
+      <a href="https://twitter.com/hostmaster">Twitter</a> |
+      <a href="https://facebook.com/hostmaster">Facebook</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>

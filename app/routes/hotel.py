@@ -34,7 +34,8 @@ from app.services.hotel.room import get_rooms_by_accommodation
 from app.services.hotel.maintenance import (  # Nuevos servicios para mantenimientos
     create_maintenance, get_maintenances, update_maintenance, delete_maintenance
 )
-from app.services.hotel.reservation import calculate_reservation_invoice  # Importar la nueva función
+from app.services.hotel.reservation import calculate_reservation_invoice, send_invoice_email, \
+    send_invoice_email_  # Importar la nueva función
 
 router = APIRouter()
 
@@ -333,6 +334,22 @@ async def get_reservation_invoice(
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating invoice: {str(e)}")
+
+
+@router.post("/reservations/{reservation_id}/send-invoice", response_model=bool, tags=["Reservations"], summary="Send reservation invoice email")
+async def send_reservation_invoice_email(
+        reservation_id: int,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[UserTable, Depends(get_current_active_user)],
+):
+    """Send an email with the invoice details for a specific reservation."""
+    try:
+        success = await send_invoice_email_(db, reservation_id, current_user.username)
+        return success
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error sending invoice email: {str(e)}")
 
 # --- Images ---
 @router.post("/images/", response_model=Image, tags=["Images"], summary="Upload a single image")
