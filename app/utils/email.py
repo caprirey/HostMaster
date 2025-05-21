@@ -107,3 +107,25 @@ async def send_generic_notification(
         template_body={"message": message},
         subtype=MessageType.plain
     )
+
+async def send_invoice_email(
+        recipient: EmailStr,
+        invoice_details: Dict[str, any]
+) -> bool:
+    """
+    Envía un correo con los detalles de la factura de una reserva.
+
+    Args:
+        recipient: Correo electrónico del usuario.
+        invoice_details: Diccionario con detalles de la factura, incluyendo 'title'.
+
+    Returns:
+        bool: True si el correo se envió correctamente, False si falló.
+    """
+    subject = f"{invoice_details.get('title', 'Factura de Reserva')} - HostMaster"
+    return await send_email(
+        recipient=recipient,
+        subject=subject,
+        template_name="invoice_email.html",
+        template_body=invoice_details
+    )
