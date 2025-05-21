@@ -73,11 +73,17 @@ app = FastAPI(
     description="API for managing hotel accommodations and services",
     version="1.0.0"
 )
+origins = [
+    "https://d2e73wd6vvwjrr.cloudfront.net",
+    "https://hostmasterapp.com",
+    "https://www.hostmasterapp.com",
+    # "http://localhost:5173",     # ej. Vite dev server
+]
 
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
